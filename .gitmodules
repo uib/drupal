@@ -1,0 +1,3 @@
+[submodule "sites/all/libraries/geoPHP"]
+	path = sites/all/libraries/geoPHP
+	url = https://github.com/phayes/geoPHP.git
