@@ -128,3 +128,32 @@ function ldap_authorization_update_7102() {
   }
 
 }
+
+/**
+ * change derive_from_attr_attr and derive_from_entry fields to text instead of varchar 2555
+ */
+function ldap_authorization_update_7103() {
+
+  foreach (array('derive_from_dn_attr', 'derive_from_attr_attr', 'derive_from_entry_entries') as $field_name) {
+   db_change_field('ldap_authorization', $field_name, $field_name, array(
+    'type' => 'text',
+    'not null' => FALSE,
+    ));
+  }
+
+}
+
+/**
+ * change derive_from_attr_attr and derive_from_entry fields to text instead of varchar 2555
+ * applied second time because beta6 and 7 were wrong.
+ */
+function ldap_authorization_update_7104() {
+
+  foreach (array('derive_from_dn_attr', 'derive_from_attr_attr', 'derive_from_entry_entries') as $field_name) {
+   db_change_field('ldap_authorization', $field_name, $field_name, array(
+    'type' => 'text',
+    'not null' => FALSE,
+    ));
+  }
+
+}

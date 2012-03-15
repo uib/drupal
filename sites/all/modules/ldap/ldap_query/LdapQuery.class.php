@@ -84,7 +84,7 @@ class LdapQuery {
     $this->detailedWatchdogLog = variable_get('ldap_help_watchdog_detail', 0);
 
     $this->baseDn = $this->linesToArray($this->base_dn_str);
-    $this->attributes = ($this->attributes_str) ? $this->csvToArray($this->attributes_str) : array();
+    $this->attributes = ($this->attributes_str) ? $this->csvToArray($this->attributes_str, TRUE) : array();
 
   }
 
@@ -112,10 +112,15 @@ class LdapQuery {
     $ldap_server->bind();
     $results = array();
 
+    $count = 0;
     foreach ($this->baseDn as $base_dn) {
       $result = $ldap_server->search($base_dn, $this->filter, $this->attributes, 0, $this->sizelimit, $this->timelimit, $this->deref, $this->scope);
-      $results = array_merge($results, $result);
+      if ($result !== FALSE) {
+        $count = $count + $result['count'];
+        $results = array_merge($results, $result);
+      }
     }
+    $results['count'] = $count;
 
     return $results;
   }
@@ -191,10 +196,13 @@ class LdapQuery {
     return $array;
   }
 
-  protected function csvToArray($string) {
+  protected function csvToArray($string, $strip_quotes = FALSE) {
     $items = explode(',', $string);
     foreach ($items as $i => $item) {
       $items[$i] = trim($item);
+      if ($strip_quotes) {
+        $items[$i] = trim($items[$i],'"');
+      }
     }
     return $items;
   }
@@ -310,18 +318,17 @@ class LdapQuery {
       'filter' => array(
         'property_name' => 'filter',
         'schema' => array(
-          'type' => 'varchar',
-          'length' => '255',
+          'type' => 'text',
           'not null' => FALSE
         ),
         'form' => array(
           'field_group' => 'query',
-          '#type' => 'textfield',
+          '#type' => 'textarea',
           '#title' => t('Filter'),
           '#description' => t('LDAP query filter such as <code>(objectClass=group)</code> or <code>(&(objectCategory=user)(homePhone=*))
 </code>'),
-          '#size' => 70,
-          '#maxlength' => 255,
+          '#cols' => 50,
+          '#rows' => 1,
           '#required' => TRUE,
         ),
         'form_to_prop_functions' => array('trim'),

@@ -4,12 +4,15 @@
  * @file
  * FeedsDrupalUserLdapEntryFetcher
  */
+
 define('LDAP_FEEDS_DRUPAL_USER_FETCHER_FILTER_AUTHENTICATED', FALSE);
+define('LDAP_FEEDS_DRUPAL_USER_FETCHER_FILTER_ROLES', FALSE);
 
 class FeedsDrupalUserLdapEntryFetcherResult extends FeedsFetcherResult {
 
   public $filterLdapAuthenticated;
   public $availableDrupalUserAttributes;
+  public $filterRoles;
 
   /**
    * Constructor.
@@ -17,6 +20,7 @@ class FeedsDrupalUserLdapEntryFetcherResult extends FeedsFetcherResult {
   public function __construct($source_config) {
     $this->availableDrupalUserAttributes = ldap_feeds_drupal_user_attributes();
     $this->filterLdapAuthenticated = isset($source_config['filterLdapAuthenticated']) ? $source_config['filterLdapAuthenticated'] : LDAP_FEEDS_DRUPAL_USER_FETCHER_FILTER_AUTHENTICATED;
+    $this->filterRoles = isset($source_config['filterRoles']) ? $source_config['filterRoles'] : LDAP_FEEDS_DRUPAL_USER_FETCHER_FILTER_ROLES;
 
     parent::__construct('');
     $this->ldap_result = $this->getRaw();
@@ -35,12 +39,15 @@ class FeedsDrupalUserLdapEntryFetcherResult extends FeedsFetcherResult {
       ->entityCondition('entity_type', 'user')
       ->execute();
     $users = entity_load('user', array_keys($entities['user']));
+    $selectedRoles = array_filter($this->filterRoles);
+    $filterOnRoles = (boolean)(count($selectedRoles));
 
     foreach ($users as $uid => $user) {
       if (
         $uid == 0 ||
         $uid == 1 ||
-        ($this->filterLdapAuthenticated && !isset($user->data['ldap_authentication']))
+        ($this->filterLdapAuthenticated && !isset($user->data['ldap_authentication'])) ||
+        ($filterOnRoles && !array_intersect(array_values($selectedRoles), array_keys($user->roles)))
         ) {
         continue;
       }
@@ -84,6 +91,7 @@ class FeedsDrupalUserLdapEntryFetcher extends FeedsFetcher {
     return array(
       'filterLdapAuthenticated' => array(),
       'availableDrupalUserAttributes' => ldap_feeds_drupal_user_attributes(),
+      'filterRoles' => array(),
     );
   }
 
@@ -115,7 +123,7 @@ class FeedsDrupalUserLdapEntryFetcher extends FeedsFetcher {
    */
   public function sourceForm($source_config) {
     $tokens = array(
-      '!edit_link' => l('admin/structure/feeds/edit/' . $this->id, 'admin/structure/feeds/edit/' . $this->id),
+      '!edit_link' => l(t('Edit Feed'), 'admin/structure/feeds/edit/' . $this->id),
     );
 
     $form_state = array();

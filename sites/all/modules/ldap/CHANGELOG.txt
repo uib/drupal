@@ -1,3 +1,50 @@
+Issue #1412030 by srinivas.kakde.  corrected problem where authentication binding by user was preserverd in authorization, etc.
+Issue #1441694 by haydeniv. fixed some needed include in ldap sso.
+Issue #1450932 by hotspoons. untested kerberos for ldap sso.
+Issue #1451778 by paulpaul.  bad variable used in dev verison.
+Issue #1452116 by paulpaul.  fixed db fields too short for ldap authorization
+Issue #1446768 by johnbarclay.  refined ldap server ->search() method error handling
+Reworked LDAP Authorization OG to improve user interface and to support mapping to more OG roles than "member".
+Reworked User Interface for LDAP Authorization.
+Issue #1416738 by fearlsgroove.  disable editing on ldap profile fields synched from ldap
+Issue #1328750#comment-5540222 by heydeniv.  misc ldap sso issues.
+Issue #1328750#comment-5540318 by haydeniv. Fix for ldap authentication validation function return.
+Issue #1430428 by resplin.  Added patch to with hook_ldap_server_in_use() so servers cannot be deleted or disabled when in use.
+Issue #1421980 by clifmo.  Patch by chris.leversuch to fix ldap_feeds.info file
+Issue #1341340 by marleythedod.  Views fix.
+Fixed some error messaging in the test ldap server form.
+Issue #1398204 by froeser.  Add try catch to check_plain on token array.
+Issue #1396786 by thesaunterer.  patch to fix undefined token attributes.
+Issue #1393196 by mattyohe. fixed stripping of quotes in return attributes.
+Issue #1393188 by mattyohe.  lengthened size of ldap query filter field.
+Issue #1357412 by nathangervais with patch.  ldap name transform php needed to be executed when binding with user ldap credentials.
+Issue #1328750 by Gribnif, catch by memfis.  ldap_sso problems related to moving to own module.
+Issue #1362480 by ybizeul to fix ldap profile warning/error.
+Some quick fixes to menus, debug statements and ldap_sso.
+Issue #1359222 by SangersDrupalDude.  theme_ldap_authorization_admin_index was sending empty array.
+Issue #1359574 by heatherwoz.  spelling error.
+Issue #1328750 by Gribnif. I forgot to remove hook_boot and hook_user_logout from ldap authentication.module
+Issue #1359600 by heatherwoz.  Fixed code that set all fields with not null in schema to required.  Made exception for checkboxes.
+Issue #1358174 by SangersDrupalDude.  Changed '0' to 0 to avoid schema errors.
+Issue #1328750 by Gribnif.  Moved LDAP SSO to a separate module.  Details on issue queue item.
+11/22/2011 Coder Review formatting and tweaks.
+Issue #1328750. Not finished with issue, but added check for command line in hook_boot.  was breaking drush and other command line scripts.
+Issue #1317816 by johnbarclay.  LDAP Authorization simpletest was broken.  Improved authorization form directions.
+Issue #1329254 by Simon Georges: bad t() function call.
+Issue #1284632 by iKevin and heatherwoz: fixed link to external url in logon help url.
+Issue #1333714 by cmurph: LDAP Authentication: Add the ability to change user login description.
+Added LDAP Profile to 7.x-1.x branch and did quite a bit of code cleanup.  Also added display of mapping
+  example data on mapping page.  Limited servers being looked at for profile data to the servers user
+  is authenticating to.
+Issue #1334138 by benys: LDAP Authentication: Strip REMOTE_USER domain name
+Issue #1322786 by heatherwoz: Feeds: Return only users of a certain role in LDAP Drupal User LDAP Entry Fetcher
+Issue #1332410 by David Reid: improved usability of ldap_help and ldap server debug pages
+Issue #1332350 by David Reid: mess from last commits removal of validation and switch to ldap type classes.
+Issue #1308854 by trprinty patch by joericapens: fixed check of uid as numeric, not integer
+Issue #1322180 by cmurph. logout error thrown.
+Issue #1310318 by heatherwoz. array_merge() was making numeric ldap attributes fail for authorization
+Issue #1316090 by geeve.  fixed ldap options call that was broke in previous change.
+added classes for specific ldap implementations: http://drupal.org/node/1115704#comment-5103276
 
 ==================
 7.x-1.0-beta5
