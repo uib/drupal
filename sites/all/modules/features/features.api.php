@@ -34,7 +34,7 @@
  *   'default_filename': The filename to use when 'default_file' is set to
  *   FEATURES_DEFAULTS_CUSTOM.
  *
- *   'feature_source': Boolean value for whether this component should be
+ *   'features_source': Boolean value for whether this component should be
  *   offered as an option on the initial feature creation form.
  *
  *   'base': Optional. An alternative base key to use when calling features
@@ -54,7 +54,7 @@ function hook_features_api() {
     'mycomponent' => array(
       'default_hook' => 'mycomponent_defaults',
       'default_file' => FEATURES_DEFAULTS_INCLUDED,
-      'feature_source' => TRUE,
+      'features_source' => TRUE,
       'file' => drupal_get_path('module', 'mycomponent') .'/mycomponent.features.inc',
     ),
   );
@@ -266,7 +266,6 @@ function hook_features_pipe_COMPONENT_alter(&$pipe, $data, $export) {
  *   feature.
  *
  * The component being exported is contained in $export['component'].
- * The module being exported contained in $export['module_name'].
  */
 function hook_features_pipe_alter(&$pipe, $data, $export) {
   if ($export['component'] == 'node' && in_array($data, 'my-node-type')) {
