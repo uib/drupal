@@ -52,6 +52,7 @@ function migrate_drush_command() {
     'description' => 'List all migrations with current status.',
     'options' => array(
       'refresh' => 'Recognize new migrations and update counts',
+      'group' => 'Name of the migration group to list',
     ),
     'arguments' => array(
       'migration' => 'Restrict to a single migration. Optional',
@@ -268,6 +269,7 @@ function drush_migrate_backend_invoke() {
 function drush_migrate_status($name = NULL) {
   try {
     $refresh = drush_get_option('refresh');
+    $group_option = drupal_strtolower(drush_get_option('group'));
 
     // Validate input and load Migration(s).
     if ($name) {
@@ -282,61 +284,76 @@ function drush_migrate_status($name = NULL) {
       $migrations = migrate_migrations();
     }
 
-    $table[] = array(dt('Name'), dt('Total'), dt('Imported'), dt('Unimported'),
-      dt('Status'), dt('Last imported'));
-    foreach ($migrations as $migration) {
-      $has_counts = TRUE;
-      if (method_exists($migration, 'sourceCount')) {
-        $total = $migration->sourceCount($refresh);
-        if ($total < 0) {
+    $groups = MigrateGroup::groups();
+    $table = array();
+    foreach ($groups as $group) {
+      if ($group_option && drupal_strtolower($group->getName()) != $group_option) {
+        continue;
+      }
+      $group_members_count = 0;
+      foreach ($migrations as $migration) {
+        if ($migration->getGroup() != $group) {
+          // This migration is not from this group.
+          continue;
+        }
+        ++$group_members_count;
+        if ($group_members_count == 1) {
+          // An empty line and the headers.
+          $table[] = array('');
+          $table[] = array(dt('Group: !name', array('!name' => $group->getName())), dt('Total'), dt('Imported'), dt('Unimported'), dt('Status'), dt('Last imported'));
+        }
+        $has_counts = TRUE;
+        if (method_exists($migration, 'sourceCount')) {
+          $total = $migration->sourceCount($refresh);
+          if ($total < 0) {
+            $has_counts = FALSE;
+            $total = dt('N/A');
+          }
+        }
+        else {
           $has_counts = FALSE;
           $total = dt('N/A');
         }
+        if (method_exists($migration, 'importedCount')) {
+          $imported = $migration->importedCount();
+          $processed = $migration->processedCount();
+        }
+        else {
+          $has_counts = FALSE;
+          $imported = dt('N/A');
+        }
+        if ($has_counts) {
+          $unimported = $total - $processed;
+        }
+        else {
+          $unimported = dt('N/A');
+        }
+        $status = $migration->getStatus();
+        switch ($status) {
+          case MigrationBase::STATUS_IDLE:
+            $status = dt('Idle');
+            break;
+          case MigrationBase::STATUS_IMPORTING:
+            $status = dt('Importing');
+            break;
+          case MigrationBase::STATUS_ROLLING_BACK:
+            $status = dt('Rolling back');
+            break;
+          case MigrationBase::STATUS_STOPPING:
+            $status = dt('Stopping');
+            break;
+          case MigrationBase::STATUS_DISABLED:
+            $status = dt('Disabled');
+            break;
+          default:
+            $status = dt('Unknown');
+            break;
+        }
+        $table[] = array($migration->getMachineName(), $total, $imported, $unimported, $status, $migration->getLastImported());
       }
-      else {
-        $has_counts = FALSE;
-        $total = dt('N/A');
-      }
-      if (method_exists($migration, 'importedCount')) {
-        $imported = $migration->importedCount();
-        $processed = $migration->processedCount();
-      }
-      else {
-        $has_counts = FALSE;
-        $imported = dt('N/A');
-      }
-      if ($has_counts) {
-        $unimported = $total - $processed;
-      }
-      else {
-        $unimported = dt('N/A');
-      }
-      $status = $migration->getStatus();
-      switch ($status) {
-        case MigrationBase::STATUS_IDLE:
-          $status = dt('Idle');
-          break;
-        case MigrationBase::STATUS_IMPORTING:
-          $status = dt('Importing');
-          break;
-        case MigrationBase::STATUS_ROLLING_BACK:
-          $status = dt('Rolling back');
-          break;
-        case MigrationBase::STATUS_STOPPING:
-          $status = dt('Stopping');
-          break;
-        case MigrationBase::STATUS_DISABLED:
-          $status = dt('Disabled');
-          break;
-        default:
-          $status = dt('Unknown');
-          break;
-      }
-      $table[] = array($migration->getMachineName(), $total, $imported, $unimported, $status,
-        $migration->getLastImported());
     }
-    drush_print_table($table, TRUE);
-    }
+    drush_print_table($table);
+  }
   catch (MigrateException $e) {
     drush_print($e->getMessage());
     exit;
@@ -353,7 +370,7 @@ function drush_migrate_fields_destination($args = NULL) {
       $destination = $migration->getDestination();
       if (method_exists($destination, 'fields')) {
         $table = array();
-        foreach ($destination->fields() as $machine_name => $description) {
+        foreach ($destination->fields($migration) as $machine_name => $description) {
           $table[] = array($description, $machine_name);
         }
         drush_print_table($table);
@@ -409,7 +426,7 @@ function drush_migrate_mappings($args = NULL) {
         $destination = $migration->getDestination();
         $dest_descriptions = array();
         if (method_exists($destination, 'fields')) {
-          foreach ($destination->fields() as $machine_name => $description) {
+          foreach ($destination->fields($migration) as $machine_name => $description) {
             $dest_descriptions[$machine_name] = $description;
           }
         }
@@ -552,7 +569,7 @@ function drush_migrate_audit($args = NULL) {
         $destination_fields = array();
       }
       else {
-        $destination_fields = $destination->fields();
+        $destination_fields = $destination->fields($migration);
       }
 
       if (!method_exists($migration, 'getFieldMappings')) {
@@ -702,6 +719,11 @@ function drush_migrate_rollback($args = NULL) {
       // If stopped, don't process any further
       elseif ($return == MigrationBase::RESULT_STOPPED) {
         break;
+      }
+      elseif ($return == MigrationBase::RESULT_SKIPPED) {
+        drush_log(dt("Skipping migration !name due to unfulfilled dependencies, use the --force option to run it anyway.",
+          array('!name' => $migration->getMachineName())),
+          'warning');
       }
     }
   }
