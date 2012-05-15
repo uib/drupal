@@ -261,7 +261,18 @@ abstract class MigrateFile implements MigrateFileInterface {
     // Prevent deletion of the file on rollback if requested.
     if (is_object($file)) {
       if (!empty($this->preserveFiles)) {
-        file_usage_add($file, 'migrate', 'file', $file->fid);
+        // We do this directly instead of calling file_usage_add, to force the
+        // count to 1 - otherwise, updates will increment the counter and the file
+        // will never be deletable
+        db_merge('file_usage')
+          ->key(array(
+            'fid' => $file->fid,
+            'module' => 'migrate',
+            'type' => 'file',
+            'id' => $file->fid,
+          ))
+          ->fields(array('count' => 1))
+          ->execute();
       }
       return $file;
     }
@@ -323,11 +334,9 @@ class MigrateFileUri extends MigrateFile {
   protected function copyFile($destination) {
     // Perform the copy operation.
     if (!@copy($this->sourcePath, $destination)) {
-      $migration = Migration::currentMigration();
-      $migration->saveMessage(t('The specified file %file could not be copied to ' .
+      throw new MigrateException(t('The specified file %file could not be copied to ' .
         '%destination.',
         array('%file' => $this->sourcePath, '%destination' => $destination)));
-      return FALSE;
     }
     else {
       return TRUE;
@@ -352,6 +361,9 @@ class MigrateFileUri extends MigrateFile {
     else {
       $this->sourcePath = $value;
     }
+
+    // Encode percent signs
+    $this->sourcePath = str_replace('%', '%25', $this->sourcePath);
 
     if (empty($this->destinationFile)) {
       $this->destinationFile = basename($this->sourcePath);
@@ -554,9 +566,8 @@ class MigrateDestinationFile extends MigrateDestinationEntity {
     $source = new $file_class((array)$file, $file);
     $file = $source->processFile($file->value, $file->uid);
 
-    $this->complete($file, $row);
-
-    if (isset($file->fid)) {
+    if (is_object($file) && isset($file->fid)) {
+      $this->complete($file, $row);
       if (isset($timestamp)) {
         db_update('file_managed')
           ->fields(array('timestamp' => $timestamp))
