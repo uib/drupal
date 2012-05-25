@@ -1,6 +1,8 @@
 
 Entity translation 7.x-1.x, xxxx-xx-xx
 --------------------------------------
+#1341314 by plach, donquixote | derhasi: Fixed Nested call of entity_get_info()
+  due to menu_get_router() in entity_translation_entity_info_alter().
 #1519912 by plach: Fixed Empty stored values may mess up the translatable switch
   update.
 #1519906 by plach: Migrate aliases when upgrading nodes.
