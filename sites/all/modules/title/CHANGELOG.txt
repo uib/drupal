@@ -3,6 +3,22 @@ Title 7.x-1.x, xxxx-xx-xx
 -------------------------
 
 
+Title 7.x-1.0-alpha3, 2012-06-05
+--------------------------------
+Issue #1586002 by plach, Pisco | liquidcms: Fixed Entity language handling
+  broken.
+Issue #1608980 by helior: Fixed Possible undefined indexes in
+  title_field_replacement_info().
+Issue #1362790 by colan, amateescu: Fixed Undefined property: stdClass::$title
+  in title_entity_update().
+Issue #1433060 by plach: Added Allow to use entity label fields in the entity
+  content area.
+Issue #1367118 by plach | BrightBold: Fixed Wrong menu item declaration for the
+  field replacement callback.
+Issue #1357220 by colan: Fixed Module should be listed in the Fields package.
+Issue #1323288 by das-peter: Fixed entitycache integration.
+
+
 Title 7.x-1.0-alpha2, 2011-09-09
 --------------------------------
 Issue #1229892 by plach | chrisdolby: Fixed Strict warning: Only variables
