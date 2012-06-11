@@ -144,6 +144,10 @@ class MigrateDestinationTerm extends MigrateDestinationEntity {
       $rawterm = $term;
       $this->prepare($term, $row);
       $old_term = taxonomy_term_load($term->tid);
+      if (empty($old_term)) {
+        throw new MigrateException(t('System-of-record is DESTINATION, but term !tid does not exist',
+          array('!tid' => $term->tid)));
+      }
       foreach ($rawterm as $field => $value) {
         $old_term->$field = $term->$field;
       }
@@ -184,13 +188,13 @@ class MigrateDestinationTerm extends MigrateDestinationEntity {
         $term->parent = array($tids[0]);
         unset($term->parent_name);
       }
+      if (empty($term->parent)) {
+        $term->parent = array(0);
+      }
       if (is_array($term->parent) && isset($term->parent['arguments'])) {
         // Unset arguments here to avoid duplicate entries in the
         // term_hierarchy table.
         unset($term->parent['arguments']);
-      }
-      if (empty($term->parent)) {
-        $term->parent = array(0);
       }
       if (!isset($term->format)) {
         $term->format = $this->textFormat;
