@@ -1,6 +1,13 @@
 
 Title 7.x-1.x, xxxx-xx-xx
 -------------------------
+Issue #1445848 by danielnolde: Added Retain the original legacy field value to
+  entity in sync.
+Issue #1620986 by plach: Perform reverse synchronization more reliably.
+Issue #1519930 by plach, steinmb: Use the upcoming entity_language() function to
+  determine the entity language.
+Issue #1586002 by plach, Pisco: (follow-up) Fixed notices when changing node
+  language.
 
 
 Title 7.x-1.0-alpha3, 2012-06-05

@@ -113,7 +113,13 @@ function title_field_term_description_submit(&$values, $legacy_field, $info, $la
  * Sync callback for the text field type.
  */
 function title_field_text_sync_get($entity_type, $entity, $legacy_field, $info, $langcode) {
-  return $entity->{$info['field']['field_name']}[$langcode][0]['value'];
+  $value = NULL;
+  $field_name = $info['field']['field_name'];
+  if (!empty($entity->{$field_name}[$langcode]) && is_array($entity->{$field_name}[$langcode])) {
+    $items = $entity->{$field_name}[$langcode];
+    $value = !empty($items[0]['value']) ? $items[0]['value'] : NULL;
+  }
+  return $value;
 }
 
 /**
@@ -127,15 +133,17 @@ function title_field_text_sync_set($entity_type, $entity, $legacy_field, $info, 
  * Sync callback for the text with summary field type.
  */
 function title_field_text_with_summary_sync_get($entity_type, $entity, $legacy_field, $info, $langcode) {
+  $value = NULL;
   $format_key = $info['additional keys']['format'];
   $field_name = $info['field']['field_name'];
   // Return values only if there is any available to process for the current
   // language.
   if (!empty($entity->{$field_name}[$langcode]) && is_array($entity->{$field_name}[$langcode])) {
     $entity->{$format_key} = $entity->{$field_name}[$langcode][0]['format'];
-    return $entity->{$field_name}[$langcode][0]['value'];
+    $items = $entity->{$field_name}[$langcode];
+    $value = !empty($items[0]['value']) ? $items[0]['value'] : NULL;
   }
-  return NULL;
+  return $value;
 }
 
 /**
