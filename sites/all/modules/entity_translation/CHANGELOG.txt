@@ -1,6 +1,28 @@
 
 Entity translation 7.x-1.x, xxxx-xx-xx
 --------------------------------------
+#1133038 by plach: Added support for field column synchronization.
+#1528624 by plach | phm: Fixed error on user translations overview.
+#1667582 by peximo: Fixed PDOException (ambiguous tnid field) on upgrade.
+#1658424 by torpy: Fixed Non-multilingual taxonomy terms attached to
+  multilingual nodes do not display.
+#1643394 by plach: Allow repeating the upgrade process.
+#1643414 by plach: Added Allow to select which content types to upgrade.
+#1643390 by plach: Implement hook_entity_translation_upgrade_translation() on
+  behalf of core modules.
+#1155134 by das-peter, plach, GiorgosK, zambrey: Added Integrate pathauto.
+#1282018 by plach, Gábor Hojtsy, webchick, bforchhammer: Drop the translation
+  form in favor of a language-aware edit form.
+
+
+Entity translation 7.x-1.0-alpha2, 2012-06-16
+---------------------------------------------
+#1587108 by plach | divined: Error: The entities of type Taxonomy term do not
+  define a valid base path: it will not be possible to translate them.
+#1524210 by fabsor, plach: Expose entity translation table to views.
+#1095390 by plach | klonos: Capitalize first letters in project's name.
+#1599568 by torpy: Fixed No content is displayed if fallback is disabled and
+  entity is set to 'Language Neutral'.
 #1341314 by plach, donquixote | derhasi: Fixed Nested call of entity_get_info()
   due to menu_get_router() in entity_translation_entity_info_alter().
 #1519912 by plach: Fixed Empty stored values may mess up the translatable switch
@@ -12,7 +34,6 @@ Entity translation 7.x-1.x, xxxx-xx-xx
   switch operation.
 #1279372 by getgood, loganfsmyth, evolvingweb, plach, Kristen Pol: Enable bulk
   field language updates when switching field translatability.
-#1155134 by das-peter, GiorgosK, zambrey: Added Integrate pathauto.
 #1380380 by bojanz: Fixed Prevent notice when translation has been removed from
   the form.
 #1367832 by floretan: Fixed Check #parents and #field_parents() for source

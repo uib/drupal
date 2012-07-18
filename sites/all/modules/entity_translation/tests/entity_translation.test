@@ -189,7 +189,7 @@ class EntityTranslationTestCase extends DrupalWebTestCase {
    *   The language code to be assigned to the specified values.
    */
   function createTranslation($node, $title, $body, $langcode) {
-    $this->drupalGet('node/' . $node->nid . '/translate/add/es/en');
+    $this->drupalGet('node/' . $node->nid . '/edit/add/en/es');
 
     $body_key = "body[$langcode][0][value]";
     $this->assertFieldByXPath("//textarea[@name='$body_key']", $node->body[$node->language][0]['value'], 'Original body value correctly populated.');
@@ -198,8 +198,9 @@ class EntityTranslationTestCase extends DrupalWebTestCase {
     $edit = array();
     $edit[$body_key] = $body;
 
-    $this->drupalPost(NULL, $edit, t('Save translation'));
-    $this->assertLinkByHref('node/' . $node->nid . '/translate/edit/' . $langcode, 0, t('Translation edit link found. Translation created.'));
+    $this->drupalPost(NULL, $edit, t('Save'));
+    $this->drupalGet('node/' . $node->nid . '/translate');
+    $this->assertLinkByHref('node/' . $node->nid . '/edit/' . $langcode, 0, t('Translation edit link found. Translation created.'));
 
     return $node;
   }
