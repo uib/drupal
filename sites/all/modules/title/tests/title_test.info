@@ -6,9 +6,9 @@ hidden = TRUE
 dependencies[] = title
 files[] = title_test.module
 
-; Information added by drupal.org packaging script on 2012-06-13
-version = "7.x-1.0-alpha3+4-dev"
+; Information added by drupal.org packaging script on 2012-06-26
+version = "7.x-1.0-alpha3+8-dev"
 core = "7.x"
 project = "title"
-datestamp = "1339548180"
+datestamp = "1340715026"
 

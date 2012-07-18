@@ -43,6 +43,7 @@ function title_entity_info() {
         ) + $instance,
       ),
     ),
+    'efq bundle conditions' => TRUE,
   );
 
   if (module_exists('taxonomy')) {
@@ -151,8 +152,8 @@ function title_field_text_with_summary_sync_get($entity_type, $entity, $legacy_f
  */
 function title_field_text_with_summary_sync_set($entity_type, $entity, $legacy_field, $info, $langcode) {
   $format_key = $info['additional keys']['format'];
-  $item = array('value' => $entity->{$legacy_field}, 'format' => $entity->{$format_key});
-  $entity->{$info['field']['field_name']}[$langcode][0] = $item;
+  $entity->{$info['field']['field_name']}[$langcode][0]['value'] = $entity->{$legacy_field};
+  $entity->{$info['field']['field_name']}[$langcode][0]['format'] = $entity->{$format_key};
 }
 
 /**

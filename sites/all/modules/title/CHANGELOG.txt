@@ -1,6 +1,14 @@
 
 Title 7.x-1.x, xxxx-xx-xx
 -------------------------
+Issue #1644736 by plach: Fixed When initializing replaced fields all bundles are
+  processed.
+Issue #1631958 by plach | Goekmen: Fixed Undefined index: base path in
+  EntityTranslationDefaultHandler.
+Issue #1635006 by nikosnikos: Fixed Description summary desappear in taxonomy
+  term.
+Issue #1528590 by torrance123, JonMcL: Fixed Reference to $form_state['values']
+  is altering Views Bulk Operations modify action form submit.
 Issue #1445848 by danielnolde: Added Retain the original legacy field value to
   entity in sync.
 Issue #1620986 by plach: Perform reverse synchronization more reliably.
