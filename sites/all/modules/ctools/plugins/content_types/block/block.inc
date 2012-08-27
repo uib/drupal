@@ -89,18 +89,42 @@ function _ctools_block_load_blocks() {
   if (!isset($blocks)) {
     global $theme_key;
 
-    $query = db_select('block', 'b');
-    $result = $query
-      ->fields('b')
-      ->condition('b.theme', $theme_key)
-      ->orderBy('b.region')
-      ->orderBy('b.weight')
-      ->orderBy('b.module')
-      ->addTag('block_load')
-      ->addTag('translatable')
-      ->execute();
+    if (module_exists('block')) {
+      $query = db_select('block', 'b');
+      $result = $query
+        ->fields('b')
+        ->condition('b.theme', $theme_key)
+        ->orderBy('b.region')
+        ->orderBy('b.weight')
+        ->orderBy('b.module')
+        ->addTag('block_load')
+        ->addTag('translatable')
+        ->execute();
 
-    $block_info = $result->fetchAllAssoc('bid');
+      $block_info = $result->fetchAllAssoc('bid');
+    }
+
+    else {
+      $block_info = array();
+      foreach (module_implements('block_info') as $module) {
+        foreach (module_invoke($module, 'block_info') as $delta => $block) {
+          $block_info[] = (object) array(
+            'module' => $module,
+            'delta' => $delta,
+            'theme' => $theme_key,
+            'status' => 0,
+            'weight' => 0,
+            'region' => -1,
+            'custom' => 0,
+            'visibility' => 0,
+            'pages' => NULL,
+            'title' => NULL,
+            'cache' => isset($block['cache']) ? $block['cache'] : 0,
+          );
+        }
+      }
+    }
+
     // Allow modules to modify the block list.
     drupal_alter('block_list', $block_info);
 
@@ -145,7 +169,7 @@ function ctools_block_content_type_render($subtype, $conf) {
     $block = (object) $block;
   }
 
-  if (empty($block)) {
+  if (!is_object($block)) {
     return;
   }
 
