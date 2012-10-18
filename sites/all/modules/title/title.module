@@ -365,7 +365,7 @@ function title_entity_sync($entity_type, &$entity, $langcode = NULL, $set = FALS
   $langcode = field_valid_language($langcode, FALSE);
 
   // We do not need to perform this more than once.
-  if (!empty($sync[$entity_type][$id][$langcode][$set])) {
+  if (!empty($id) && !empty($sync[$entity_type][$id][$langcode][$set])) {
     return;
   }
 
@@ -399,7 +399,7 @@ function title_entity_sync($entity_type, &$entity, $langcode = NULL, $set = FALS
  *   The field language to use for the source value.
  */
 function title_field_sync_get($entity_type, $entity, $legacy_field, $info, $langcode = NULL) {
-  if (isset($entity->{$legacy_field})) {
+  if (property_exists($entity, $legacy_field)) {
     // Save the legacy field value to LEGACY_FIELD_NAME_original.
     $entity->{$legacy_field . '_original'} = $entity->{$legacy_field};
     // Find out the actual language to use (field might be untranslatable).
@@ -425,7 +425,7 @@ function title_field_sync_get($entity_type, $entity, $legacy_field, $info, $lang
  *   The field language to use for the source value.
  */
 function title_field_sync_set($entity_type, $entity, $legacy_field, $info) {
-  if (isset($entity->{$legacy_field})) {
+  if (property_exists($entity, $legacy_field)) {
     $langcode = title_entity_language($entity_type, $entity);
     $info['callbacks']['sync_set']($entity_type, $entity, $legacy_field, $info, $langcode);
   }
@@ -491,7 +491,6 @@ function title_field_attach_submit($entity_type, $entity, $form, &$form_state) {
     // drupal_array_set_nested_value().
     $values = $form_state['values'];
     $values = drupal_array_get_nested_value($values, $form['#parents']);
-    $fr_info = title_field_replacement_info($entity_type);
     $langcode = title_entity_language($entity_type, $entity);
 
     foreach ($fr_info as $legacy_field => $info) {
@@ -500,7 +499,7 @@ function title_field_attach_submit($entity_type, $entity, $form, &$form_state) {
 
         // Give a chance to operate on submitted values either.
         if (!empty($info['callbacks']['submit'])) {
-          $info['callbacks']['submit']($values, $legacy_field, $info, $langcode);
+          $info['callbacks']['submit']($entity_type, $entity, $legacy_field, $info, $langcode, $values);
         }
 
         drupal_static_reset('field_language');
@@ -551,6 +550,15 @@ function title_menu() {
       }
     }
   }
+
+  $items['admin/config/content/title'] = array(
+    'title' => 'Title settings',
+    'description' => 'Settings for the Title module.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('title_admin_settings_form'),
+    'access arguments' => array('administer content types'),
+    'file' => 'title.admin.inc',
+  );
 
   return $items;
 }
@@ -745,5 +753,50 @@ function title_field_replacement_hide_label($entity_type, $entity, &$variables, 
     // We cannot simply unset the variable value since this may cause templates
     // to throw notices.
     $variables[$key] = FALSE;
+  }
+}
+
+/**
+ * Implements hook_views_api().
+ */
+function title_views_api() {
+  return array(
+    'api' => 3,
+    'path' => drupal_get_path('module', 'title') . '/views',
+  );
+}
+
+/**
+ * Implements hook_field_attach_create_bundle().
+ *
+ * Automatically attach the replacement field to the new bundle.
+ */
+function title_field_attach_create_bundle($entity_type, $bundle) {
+  $entity_info = entity_get_info($entity_type);
+  if (empty($entity_info['field replacement'])) {
+    return;
+  }
+
+  $options = variable_get('title_auto_attach', array());
+
+  foreach (array_keys($entity_info['field replacement']) as $field_name) {
+    if (!isset($options[$entity_type . ':' . $field_name])) {
+      continue;
+    }
+
+    // Do not continue if the replacement field already exists.
+    if (field_info_instance($entity_type, $field_name, $bundle)) {
+      continue;
+    }
+
+    title_field_replacement_toggle($entity_type, $bundle, $field_name);
+
+    $params = array(
+      '@entity_name' => strtolower($entity_info['label']),
+      '@field_name' => $entity_info['field replacement'][$field_name]['field']['field_name'],
+      '@bundle_name' => $bundle,
+    );
+
+    drupal_set_message(t('The field @field_name was attached automatically to @entity_name - @bundle_name.', $params));
   }
 }

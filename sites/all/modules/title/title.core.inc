@@ -101,11 +101,13 @@ function title_entity_info() {
 /**
  * Submit callback for the taxonomy term description.
  */
-function title_field_term_description_submit(&$values, $legacy_field, $info, $langcode) {
-  $values['description'] = array();
+function title_field_term_description_submit($entity_type, $entity, $legacy_field, $info, $langcode, &$values) {
+  if (!isset($values['description'])) {
+    $values['description'] = array();
+  }
   foreach (array('value', 'format') as $key) {
-    if (isset($values[$info['field']['field_name']][$langcode][0][$key])) {
-      $values['description'][$key] = $values[$info['field']['field_name']][$langcode][0][$key];
+    if (isset($entity->{$info['field']['field_name']}[$langcode][0][$key])) {
+      $values['description'][$key] = $entity->{$info['field']['field_name']}[$langcode][0][$key];
     }
   }
 }
