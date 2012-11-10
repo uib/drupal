@@ -1,5 +1,4 @@
 <?php
-// $Id: bot_auth.module,v 1.1.2.2 2010/12/31 03:19:28 morbus Exp $
 
 /**
  * @file
@@ -14,7 +13,7 @@ function bot_auth_help($path, $arg) {
     case 'irc:features':
       return array(t('Auth'));
     case 'irc:features#auth':
-      return t('If you have a Drupal user account with the bot\'s host, you can "/msg BOTNAME login [username]/[password]" to authenticate your IRC session and gain additional privileges.');
+      return t('If you have a Drupal user account with the bot\'s host, you can "/msg BOTNAME login USERNAME/PASSWORD" to authenticate your IRC session and gain additional privileges.');
   }
 }
 
@@ -37,10 +36,10 @@ function bot_auth_irc_msg_query($data) {
           'timestamp' => time(),
         ))
         ->execute(); // I LOVE MERGE QUERIES, GO UPSERTS!
-      bot_message($data->nick, t("You are now logged in."));
+      bot_message($data->nick, t('You are now logged in.'));
     }
     else {
-      bot_message($data->nick, t("Unrecognized username or password: [$username/$password]"));
+      bot_message($data->nick, t('Unrecognized username or password.'));
     }
   }
 }
@@ -71,7 +70,7 @@ function bot_auth_irc_msg_quit($data) {
  * Checks the passed nick to see if a session has been started for them
  * and their hostname matches the last known entry. Expected usage is:
  *
- *   $account = both_auth_authed($data);
+ *   $account = bot_auth_authed($data);
  *   if ($account && user_access('go crazy', $account)) {
  *     // Do something
  *   }

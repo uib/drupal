@@ -1,5 +1,4 @@
 <?php
-// $Id: bot_start.php,v 1.1.2.1 2010/12/29 14:43:34 morbus Exp $
 
 /*
  * @file

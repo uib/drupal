@@ -1,4 +1,25 @@
-// $Id: CHANGELOG.txt,v 1.14.2.16.2.44.2.11 2011/01/05 02:06:38 morbus Exp $
+
+Bot 7.x-1.4, 2012-XX-XX
+-----------------------
+* Remove sites/all/apidocs and cronjobs for it.
+* Move Trac from bot_project into bot_trac.
+* Remove API stuff from bot_project.
+* Rename bot_project to bot_drupal_project.
+* Write up docs for bot_drupal_api.
+* Revise front page on drupal.org.
+* Add a list of other bot modules to front page.
+* variable_del or convert the old config from project?
+* check the indexes to make sure they're being used
+* Help lookup for api module
+    case 'irc:features#function_lookups':
+      return t('The bot provides function lookups, triggered by "<function>?", based on the host\'s installed branches. Branches besides the default, if any, can be specified with "<function>:<branch>?".');
+* @todo add the placeholder "file a patch!" docs in again
+
+
+  * Issue #1254268: Removed LIKE on factoid deletion (thanks greg.harvey).
+  * Issue #1067748: Only MySQL under MySQL (thanks Garrett Albright).
+  * Fixed crash on bad time format in bot_potpourri (thanks ilo).
+  * Changed default #test channel to #botwar per Freenode's docs.
 
 Bot 7.x-1.3, 2011-01-05
 -----------------------

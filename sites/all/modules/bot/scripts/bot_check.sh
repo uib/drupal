@@ -1,5 +1,4 @@
 #!/bin/sh
-# $Id: bot_check.sh,v 1.1.2.2 2010/12/30 01:05:46 morbus Exp $
 
 # This is one simple approach to ensuring your bot is always available.
 # Here, we're just checking to see if "bot-start" is in the process list -

@@ -1,5 +1,4 @@
 <?php
-// $Id: bot.drush.inc,v 1.1.2.2 2010/12/31 01:50:04 morbus Exp $
 
 /**
  * @file

@@ -1,5 +1,4 @@
 <?php
-// $Id: bot_log.module,v 1.1.2.7.2.10.2.6 2010/12/29 23:33:34 morbus Exp $
 
 /**
  * @file
@@ -15,7 +14,7 @@ function bot_log_help($path, $arg) {
       return array(t('Logging'));
     case 'irc:features#logging':
       return t('Logging is enabled for some or all channels at <!url>. A URL to the current log and timestamp is retrievable with "BOTNAME: log pointer?" or "BOTNAME: log bookmark?"', array('!url' => url('bot/log', array('absolute' => TRUE))));
-    case 'admin/settings/bot/log':
+    case 'admin/config/bot/log':
       return '<p>' . t('Configure bot logging with these settings.') . '</p>';
   }
 }

@@ -1,5 +1,4 @@
 <?php
-// $Id: bot.smartirc.inc,v 1.1.2.4 2010/12/29 21:36:21 morbus Exp $
 
 /**
  * @file
@@ -14,8 +13,10 @@ function bot_smartirc_start() {
   require_once 'Net/SmartIRC/defines.php';
   variable_set('bot_status', BOT_STATUS_CONNECTING);
 
-  // prevent MySQL timeouts on slow channels.
-  db_query('SET SESSION wait_timeout = 86400');
+  if (db_driver() === 'mysql') {
+    // prevent timeouts on slow channels.
+    db_query('SET SESSION wait_timeout = 86400');
+  }
 
   // initialize the bot with some sane defaults.
   global $irc; // allow it to be slurped by Drupal modules if need be.
@@ -92,15 +93,15 @@ class bot_smartirc_wrapper {
       // of web form submissions, we need to force UTF-8 for all messages.
       if (function_exists('mb_detect_encoding')) {
         $encoding = mb_detect_encoding($data->message, 'UTF-8, ISO-8859-1');
-        if ($encoding != 'UTF-8') { // no point of converting it already.
-          // we only convert over message related elements and leave the
-          // existing parses (nick, ident, host, type, channel, etc.) alone.
-          $data->message      = mb_convert_encoding($data->message, 'UTF-8', $encoding);
-          $data->rawmessage   = mb_convert_encoding($data->rawmessage, 'UTF-8', $encoding);
-          $data->messageex    = explode(' ', $data->message);
-          $data->rawmessageex = explode(' ', $data->rawmessage);
-          watchdog('bot', 'Converted @encoding to UTF-8: @message.', array('@encoding' => $encoding, '@message' => $data->message), WATCHDOG_INFO);
-        }
+
+        // we convert every string, even those already labeled as UTF-8, as
+        // there were still related crashes when we were only doing non-UTF-8s.
+        // we also only convert over message related elements and leave the
+        // existing parses (nick, ident, host, type, channel, etc.) alone.
+        $data->message      = mb_convert_encoding($data->message, 'UTF-8', $encoding);
+        $data->rawmessage   = mb_convert_encoding($data->rawmessage, 'UTF-8', $encoding);
+        $data->messageex    = explode(' ', $data->message);
+        $data->rawmessageex = explode(' ', $data->rawmessage);
       }
     }
 

@@ -1,5 +1,4 @@
 <?php
-// $Id: bot_seen.install,v 1.1.2.3.2.1.2.1 2010/12/27 16:01:13 morbus Exp $
 
 /**
  * Implements hook_schema().

@@ -1,4 +1,3 @@
-// $Id: README.txt,v 1.6.2.5.2.1.2.4 2010/12/29 21:36:21 morbus Exp $
 
 CONTENTS OF THIS FILE
 ---------------------
@@ -42,7 +41,7 @@ entails running the bot through a shell, NOT through web browser access.
 
 2. Copy this bot/ directory to your sites/SITENAME/modules directory.
 
-3. Enable the module(s) and then configure them at admin/settings/bot.
+3. Enable the module(s) and then configure them at admin/config/bot.
 
 
 STARTING THE BOT
@@ -54,6 +53,12 @@ If you have Drush installed, the following commands are available:
   drush bot-status
   drush bot-status-reset
   drush bot-stop
+
+Note, however, that bot.module does use your site's URL in some commands, but
+Drush doesn't ever know your URL by default. To ensure proper reporting by the
+bot, you'll need to either set your $base_url in settings.php, or tell Drush
+your URL with "--uri=http://example.com/". If you don't, the bot will report
+all URLs as "http://default/". I prefer setting the URL in settings.php.
 
 To start the bot as a background process, use:
 
