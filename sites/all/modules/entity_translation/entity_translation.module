@@ -9,81 +9,50 @@ module_load_include('inc', 'entity_translation', 'entity_translation.node');
 
 
 /**
- * Entity language callback.
- *
- * This callback changes the entity language from the actual one to the active
- * form language. This overriding allows to obtain language dependent form
- * widgets where multilingual values are supported (e.g. field or path alias
- * widgets) even if the code was not originally written with supporting multiple
- * values per language in mind.
- *
- * The main drawback of this approach is that code needing to access the actual
- * language in the entity form build/validation/submit workflow cannot rely on
- * the entity_language() function. On the other hand in these scenarios assuming
- * the presence of Entity translation should be safe, thus being able to rely on
- * the EntityTranslationHandlerInterface::getLanguage() method.
- *
- * @param $entity_type
- *    The the type of the entity.
- * @param $entity
- *    The entity whose language has to be returned.
- *
- * @return
- *   A valid language code.
+ * Language code identifying the site default language.
  */
-function entity_translation_language($entity_type, $entity) {
-  // If a form has been post, we need to check its state to verify if any form
-  // translation handler is stored there. This is mainly needed when responding
-  // to an AJAX request where the form language cannot be set from the page
-  // callback.
-  $handler = entity_translation_current_form_get_handler();
+define('ENTITY_TRANSLATION_LANGUAGE_DEFAULT', 'xx-et-default');
 
-  // Make sure we always have a translation handler instance available.
-  if (empty($handler)) {
-    $handler = entity_translation_get_handler($entity_type, $entity);
-  }
-  // If a translation handler associated to the current form is found, we need
-  // to update the wrapped entity. This way submitted values will be picked up.
-  else {
-    $langcode = $handler->getLanguage();
-    $handler->setEntity($entity);
-    $submitted_langcode = $handler->getLanguage();
-    // If the entity language has changed we are editing tha original values. In
-    // this case we need to update the current form language with the submitted
-    // one.
-    if ($submitted_langcode != $langcode) {
-      $handler->setFormLanguage($submitted_langcode);
-    }
-  }
+/**
+ * Language code identifying the current content language.
+ */
+define('ENTITY_TRANSLATION_LANGUAGE_CURRENT', 'xx-et-current');
 
-  $langcode = $handler->getFormLanguage();
-  return !empty($langcode) ? $langcode : $handler->getLanguage();
+/**
+ * Language code identifying the author's preferred language.
+ */
+define('ENTITY_TRANSLATION_LANGUAGE_AUTHOR', 'xx-et-author');
+
+
+/**
+ * Implements hook_hook_info().
+ */
+function entity_translation_hook_info() {
+  $hooks['entity_translation_insert'] = array(
+    'group' => 'entity_translation',
+  );
+  $hooks['entity_translation_update'] = array(
+    'group' => 'entity_translation',
+  );
+  $hooks['entity_translation_delete'] = array(
+    'group' => 'entity_translation',
+  );
+  return $hooks;
 }
 
 /**
- * Returns the translation handler associated to the currently submitted form.
- *
- * @return EntityTranslationHandlerInterface
- *   A translation handler instance if available, FALSE oterwise.
+ * Implements hook_module_implements_alter().
  */
-function entity_translation_current_form_get_handler() {
-  $handler = FALSE;
-
-  if (!empty($_POST['form_build_id'])) {
-    $form_state = form_state_defaults();
-    $form = form_get_cache($_POST['form_build_id'], $form_state);
-    $handler = entity_translation_entity_form_get_handler($form, $form_state);
+function entity_translation_module_implements_alter(&$implementations, $hook) {
+  switch ($hook) {
+    case 'menu_alter':
+    case 'entity_info_alter':
+      // Move some of our hook implementations to the end of the list.
+      $group = $implementations['entity_translation'];
+      unset($implementations['entity_translation']);
+      $implementations['entity_translation'] = $group;
+      break;
   }
-
-  return $handler;
-}
-
-/**
- * Helper function. Determines whether the given entity type is translatable.
- */
-function entity_translation_enabled($entity_type, $skip_handler = FALSE) {
-  $enabled_types = variable_get('entity_translation_entity_types', array());
-  return !empty($enabled_types[$entity_type]) && ($skip_handler || field_has_translation_handler($entity_type, 'entity_translation'));
 }
 
 /**
@@ -94,27 +63,45 @@ function entity_translation_language_types_info_alter(array &$language_types) {
 }
 
 /**
- * Implements hook_translation_info().
+ * Implements hook_entity_info().
  */
-function entity_translation_translation_info($types = NULL) {
-  $info = array(
-    'comment' => array(
+function entity_translation_entity_info() {
+  $info = array();
+
+  $info['node'] = array(
+    'translation' => array(
+      'entity_translation' => array(
+        'class' => 'EntityTranslationNodeHandler',
+        'access callback' => 'entity_translation_node_tab_access',
+        'access arguments' => array(1),
+        'admin theme' => variable_get('node_admin_theme'),
+        'bundle callback' => 'entity_translation_node_supported_type',
+        'default settings' => array(
+          'default_language' => LANGUAGE_NONE,
+          'hide_language_selector' => FALSE,
+        ),
+      ),
+    ),
+  );
+
+  if (module_exists('comment')) {
+    $info['comment'] = array(
       'translation' => array(
         'entity_translation' => array(
           'class' => 'EntityTranslationCommentHandler',
+          'admin theme' => FALSE,
+          'bundle callback' => 'entity_translation_comment_supported_type',
+          'default settings' => array(
+            'default_language' => ENTITY_TRANSLATION_LANGUAGE_CURRENT,
+            'hide_language_selector' => TRUE,
+          ),
         ),
       ),
-    ),
-    'node' => array(
-      'translation' => array(
-        'entity_translation' => array(
-          'class' => 'EntityTranslationNodeHandler',
-          'access callback' => 'entity_translation_node_tab_access',
-          'access arguments' => array(1),
-        ),
-      ),
-    ),
-    'taxonomy_term' => array(
+    );
+  }
+
+  if (module_exists('taxonomy')) {
+    $info['taxonomy_term'] = array(
       'translation' => array(
         'entity_translation' => array(
           'class' => 'EntityTranslationTaxonomyTermHandler',
@@ -122,59 +109,95 @@ function entity_translation_translation_info($types = NULL) {
           'edit form' => 'term',
         ),
       ),
+    );
+  }
+
+  $info['user'] = array(
+    'translation' => array(
+      'entity_translation' => array(
+        'class' => 'EntityTranslationUserHandler',
+        'skip original values access' => TRUE,
+        'skip shared fields access' => TRUE,
+      ),
     ),
-    'user' => array(),
   );
 
-  return isset($types) ? array_intersect_key($info, $types) : $info;
+  return $info;
+}
+
+/**
+ * Processes the given path schemes and fill-in default values.
+ */
+function _entity_translation_process_path_schemes($entity_type, &$et_info) {
+  $path_scheme_keys = array_flip(array('base path', 'view path', 'edit path', 'translate path', 'path wildcard', 'admin theme'));
+
+  // Insert the default path scheme into the 'path schemes' array and remove
+  // respective elements from the entity_translation info array.
+  $default_scheme = array_intersect_key($et_info, $path_scheme_keys);
+  if (!empty($default_scheme)) {
+    $et_info['path schemes']['default'] = $default_scheme;
+    $et_info = array_diff_key($et_info, $path_scheme_keys);
+  }
+
+  // If no base path is provided we default to the common "node/%node"
+  // pattern.
+  if (empty($et_info['path schemes']['default']['base path'])) {
+    $et_info['path schemes']['default']['base path'] = "$entity_type/%$entity_type";
+  }
+
+  foreach ($et_info['path schemes'] as $delta => $scheme) {
+    // If there is a base path, then we automatically create the other path
+    // elements based on the base path.
+    if (!empty($scheme['base path'])) {
+      $view_path = $scheme['base path'];
+      $edit_path = $scheme['base path'] . '/edit';
+      $translate_path = $scheme['base path'] . '/translate';
+
+      $et_info['path schemes'][$delta] += array(
+        'view path' => $view_path,
+        'edit path' => $edit_path,
+        'translate path' => $translate_path,
+      );
+    }
+
+    // Merge in default values for other scheme elements.
+    $et_info['path schemes'][$delta] += array(
+      'admin theme' => TRUE,
+      'path wildcard' => "%$entity_type",
+    );
+  }
 }
 
 /**
  * Implements hook_entity_info_alter().
  */
 function entity_translation_entity_info_alter(&$entity_info) {
-  // Collect entity-specific translation information.
-  $types = array_flip(array_keys($entity_info));
-  $translation_info = module_invoke_all('translation_info', $types);
-  $entity_info = array_merge_recursive($entity_info, $translation_info);
-  $edit_form_info = array();
-
   // Provide defaults for translation info.
   foreach ($entity_info as $entity_type => $info) {
     if (!isset($entity_info[$entity_type]['translation']['entity_translation'])) {
       $entity_info[$entity_type]['translation']['entity_translation'] = array();
     }
+    $et_info = &$entity_info[$entity_type]['translation']['entity_translation'];
 
     // Every fieldable entity type must have a translation handler class, no
     // matter if it is enabled for translation or not. As a matter of fact we
     // might need it to correctly switch field translatability when a field is
     // shared accross different entities.
-    $entity_info[$entity_type]['translation']['entity_translation'] += array('class' => 'EntityTranslationDefaultHandler');
+    $et_info += array('class' => 'EntityTranslationDefaultHandler');
 
     if (entity_translation_enabled($entity_type, TRUE)) {
       $entity_info[$entity_type]['language callback'] = 'entity_translation_language';
 
-      // If no base path is provided we default to the common "node/%node"
-      // pattern.
-      if (!isset($entity_info[$entity_type]['translation']['entity_translation']['base path'])) {
-        $path = "$entity_type/%$entity_type";
-        $entity_info[$entity_type]['translation']['entity_translation']['base path'] = $path;
-      }
+      // Process path schemes and fill-in defaults.
+      _entity_translation_process_path_schemes($entity_type, $et_info);
 
-      $path = $entity_info[$entity_type]['translation']['entity_translation']['base path'];
-
-      $entity_info[$entity_type]['translation']['entity_translation'] += array(
-        'view path' => $path,
-        'edit path' => "$path/edit",
-        'path wildcard' => "%$entity_type",
+      // Merge in default values for remaining keys.
+      $et_info += array(
         'access callback' => 'entity_translation_tab_access',
         'access arguments' => array($entity_type),
-        'theme callback' => 'variable_get',
-        'theme arguments' => array('admin_theme'),
       );
 
       // Interpret a TRUE value for the 'edit form' key as the default value.
-      $et_info = &$entity_info[$entity_type]['translation']['entity_translation'];
       if (!isset($et_info['edit form']) || $et_info['edit form'] === TRUE) {
         $et_info['edit form'] = $entity_type;
       }
@@ -194,7 +217,7 @@ function entity_translation_menu() {
 
   $items['admin/config/regional/entity_translation'] = array(
     'title' => 'Entity translation',
-    'description' => 'Configure which entities can be translated and enable or disable language falback.',
+    'description' => 'Configure which entities can be translated and enable or disable language fallback.',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('entity_translation_admin_form'),
     'access arguments' => array('administer entity translation'),
@@ -204,7 +227,7 @@ function entity_translation_menu() {
 
   $items['admin/config/regional/entity_translation/translatable/%'] = array(
     'title' => 'Confirm change in translatability.',
-    'description' => 'Confirm page for changing field translatability.',
+    'description' => 'Confirmation page for changing field translatability.',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('entity_translation_translatable_form', 5),
     'access arguments' => array('toggle field translatability'),
@@ -215,129 +238,276 @@ function entity_translation_menu() {
 }
 
 /**
+ * Validate the given set of path schemes and remove invalid elements.
+ *
+ * Each path scheme needs to fulfill the following requirements:
+ * - The 'path wildcard' key needs to be specified.
+ * - Every path (base/view/edit/translate) needs to contain the path wildcard.
+ * - The following path definitions (if specified) need to match existing menu
+ *   items: 'base path', 'view path', 'edit path'.
+ * - The 'translate path' definition needs to have an existing parent menu item.
+ *
+ * This function needs to be called once with a list of menu items passed as the
+ * last parameter, before it can be used for validation.
+ *
+ * @param $schemes
+ *   The array of path schemes.
+ * @param $entity_type_label
+ *   The label of the current entity type. This is used in error messages.
+ * @param $items
+ *   A list of menu items.
+ * @param $warnings
+ *   (optional) Displays warnings when a path scheme does not validate.
+ */
+function _entity_translation_validate_path_schemes(&$schemes, $entity_type_label, $items = FALSE, $warnings = FALSE) {
+  $paths = &drupal_static(__FUNCTION__);
+  static $regex = '|%[^/]+|';
+
+  if (!empty($items)) {
+    // Some menu loaders in the item paths might have been altered: we need to
+    // replace any menu loader with a plain % to check if base paths are still
+    // compatible.
+    $paths = array();
+    foreach ($items as $path => $item) {
+      $stripped_path = preg_replace($regex, '%', $path);
+      $paths[$stripped_path] = $path;
+    }
+  }
+
+  if (empty($schemes)) {
+    return;
+  }
+
+  // Make sure we have a set of paths to validate the scheme against.
+  if (empty($paths)) {
+    // This should never happen.
+    throw new Exception('The Entity Translation path scheme validation function has not been initialized properly.');
+  }
+
+  foreach ($schemes as $delta => &$scheme) {
+    // Every path scheme needs to declare a path wildcard for the entity id.
+    if (empty($scheme['path wildcard'])) {
+      if ($warnings) {
+        $t_args = array('%scheme' => $delta, '%entity_type' => $entity_type_label);
+        drupal_set_message(t('Entity Translation path scheme %scheme for entities of type %entity_type does not declare a path wildcard.', $t_args), 'warning');
+      }
+      unset($schemes[$delta]);
+      continue;
+    }
+
+    $wildcard = $scheme['path wildcard'];
+    $validate_keys = array('base path' => FALSE, 'view path' => FALSE, 'edit path' => FALSE, 'translate path' => TRUE);
+
+    foreach ($validate_keys as $key => $check_parent) {
+      if (isset($scheme[$key])) {
+        $path = $scheme[$key];
+        $parts = explode('/', $path);
+        $scheme[$key . ' parts'] = $parts;
+
+        // Check that the path contains the path wildcard. Required for
+        // determining the position of the entity id in the path (see
+        // entity_translation_menu_alter()).
+        if (!in_array($wildcard, $parts)) {
+          if ($warnings) {
+            $t_args = array('%path_key' => $key, '%entity_type' => $entity_type_label, '%wildcard' => $wildcard, '%path' => $path);
+            drupal_set_message(t('Invalid %path_key defined for entities of type %entity_type: entity wildcard %wildcard not found in %path.', $t_args), 'warning');
+          }
+          unset($scheme[$key]);
+          continue;
+        }
+
+        // Remove the trailing path element for paths requiring an existing
+        // parent menu item (i.e. the "translate path").
+        $trailing_path_element = FALSE;
+        if ($check_parent) {
+          $trailing_path_element = array_pop($parts);
+          $path = implode('/', $parts);
+        }
+        $stripped_path = preg_replace($regex, '%', $path);
+
+        if (!isset($paths[$stripped_path])) {
+          if ($warnings) {
+            $t_args = array('%path_key' => $key, '%entity_type' => $entity_type_label, '%path' => $path);
+            $msg = $check_parent ?
+              t('Invalid %path_key defined for entities of type %entity_type: parent menu item not found for %path', $t_args) :
+              t('Invalid %path_key defined for entities of type %entity_type: matching menu item not found for %path', $t_args);
+            drupal_set_message($msg, 'warning');
+          }
+          unset($scheme[$key]);
+        }
+        // If there is a matching menu item for the current scheme key, save
+        // the real path, i.e. the path of the matching menu item.
+        else {
+          $real_path = $paths[$stripped_path];
+          $real_parts = explode('/', $real_path);
+
+          // Restore previously removed trailing path element.
+          if ($trailing_path_element) {
+            $real_path .= '/' . $trailing_path_element;
+            $real_parts[] = $trailing_path_element;
+          }
+
+          $scheme['real ' . $key] = $real_path;
+          $scheme['real ' . $key . ' parts'] = $real_parts;
+        }
+      }
+    }
+  }
+}
+
+/**
  * Implements hook_menu_alter().
  */
 function entity_translation_menu_alter(&$items) {
   $backup = array();
-  $languages = entity_translation_languages();
 
-  // Some menu loaders in the item paths might have been altered: we need to
-  // replace any menu loader with a plain % to check if base paths are still
-  // compatible.
-  $paths = array();
-  $regex = '|%[^/]+|';
-  foreach ($items as $path => $item) {
-    $path = preg_replace($regex, '%', $path);
-    $paths[$path] = $path;
-  }
+  // Initialize path schemes validation function with set of current menu items.
+  $_null = NULL;
+  _entity_translation_validate_path_schemes($_null, FALSE, $items);
 
   // Create tabs for all possible entity types.
   foreach (entity_get_info() as $entity_type => $info) {
     // Menu is rebuilt while determining entity translation base paths and
     // callbacks so we might not have them available yet.
     if (entity_translation_enabled($entity_type)) {
-      // Extract informations from the bundle description.
-      $path = $info['translation']['entity_translation']['base path'];
-
-      // If the base path is not defined or is not compatible with any defined
-      // one we cannot provide the translation UI for this entity type.
-      if (!isset($paths[preg_replace($regex, '%', $path)])) {
-        drupal_set_message(t('The entities of type %entity_type do not define a valid base path: it will not be possible to translate them.', array('%entity_type' => $info['label'])), 'warning');
-        continue;
-      }
-
-      $keys = array('theme callback', 'theme arguments', 'access callback', 'access arguments', 'load arguments');
-      $item = array_intersect_key($info['translation']['entity_translation'], drupal_map_assoc($keys));
-
-      $item += array(
-        'file' => 'entity_translation.admin.inc',
-        'module' => 'entity_translation',
-      );
-
-      $entity_position = count(explode('/', $path)) - 1;
-      $source_position = $entity_position + 4;
-      $language_position = $entity_position + 3;
-
-      // Backup existing values for the translate overview page.
-      if (isset($items["$path/translate"])) {
-        $backup[$entity_type] = $items["$path/translate"];
-      }
-
-      $items["$path/translate"] = array(
-        'title' => 'Translate',
-        'page callback' => 'entity_translation_overview',
-        'page arguments' => array($entity_type, $entity_position),
-        'type' => MENU_LOCAL_TASK,
-        'weight' => 2,
-      ) + $item;
-
       $et_info = $info['translation']['entity_translation'];
-      $edit_path = $et_info['edit path'];
 
-      if (isset($items[$edit_path])) {
-        // If the edit path is a default local task we need to find the parent
-        // item.
-        $edit_path_split = explode('/', $edit_path);
-        do {
-          $edit_form_item = &$items[implode('/', $edit_path_split)];
-          array_pop($edit_path_split);
+      // Flag for tracking whether we have managed to attach the translate UI
+      // successfully at least once.
+      $translate_ui_attached = FALSE;
+
+      // Validate path schemes for current entity type. Also removes invalid
+      // ones and adds '... path parts' elements.
+      _entity_translation_validate_path_schemes($et_info['path schemes'], $info['label'], FALSE, TRUE);
+
+      foreach ($et_info['path schemes'] as $scheme) {
+        $translate_item = NULL;
+        $edit_item = NULL;
+
+        // If we have a translate path then attach the translation UI, and
+        // register the callback for deleting a translation.
+        if (isset($scheme['translate path'])) {
+          $translate_path = $scheme['translate path'];
+
+          $keys = array('theme callback', 'theme arguments', 'access callback', 'access arguments', 'load arguments');
+          $item = array_intersect_key($info['translation']['entity_translation'], drupal_map_assoc($keys));
+
+          $item += array(
+            'file' => 'entity_translation.admin.inc',
+            'module' => 'entity_translation',
+          );
+
+          $entity_position = array_search($scheme['path wildcard'], $scheme['translate path parts']);
+
+          if ($item['access callback'] == 'entity_translation_tab_access') {
+            $item['access arguments'][] = $entity_position;
+          }
+
+          // Backup existing values for the translate overview page.
+          if (isset($items[$translate_path])) {
+            $backup[$entity_type] = $items[$translate_path];
+          }
+
+          $items[$translate_path] = array(
+            'title' => 'Translate',
+            'page callback' => 'entity_translation_overview',
+            'page arguments' => array($entity_type, $entity_position),
+            'type' => MENU_LOCAL_TASK,
+            'weight' => 2,
+            'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
+          ) + $item;
+
+          // Delete translation callback.
+          $language_position = count($scheme['translate path parts']) + 1;
+          $items["$translate_path/delete/%entity_translation_language"] = array(
+            'title' => 'Delete',
+            'page callback' => 'drupal_get_form',
+            'page arguments' => array('entity_translation_delete_confirm', $entity_type, $entity_position, $language_position),
+          ) + $item;
+
+          $translate_item = &$items[$translate_path];
         }
-        while (!empty($edit_form_item['type']) && $edit_form_item['type'] == MENU_DEFAULT_LOCAL_TASK);
 
-        // Make the "Translate" local task follow the "Edit" one when possibile.
-        if (isset($edit_form_item['weight'])) {
-          $items["$path/translate"]['weight'] = $edit_form_item['weight'] + 1;
+        // If we have an edit path, then replace the menu edit form with our
+        // proxy implementation, and register new callbacks for adding and
+        // editing a translation.
+        if (isset($scheme['edit path'])) {
+          // Find the edit item. If the edit path is a default local task we
+          // need to find the parent item.
+          $real_edit_path_parts = $scheme['real edit path parts'];
+          do {
+            $edit_item = &$items[implode('/', $real_edit_path_parts)];
+            array_pop($real_edit_path_parts);
+          }
+          while (!empty($edit_item['type']) && $edit_item['type'] == MENU_DEFAULT_LOCAL_TASK);
+
+          $edit_path = $scheme['edit path'];
+          $edit_path_parts = $scheme['edit path parts'];
+
+          // Replace the main edit callback with our proxy implementation to set
+          // form language to the current language and check access.
+          $entity_position = array_search($scheme['path wildcard'], $edit_path_parts);
+          $original_item = $edit_item;
+          $args = array($entity_type, $entity_position, FALSE, $original_item);
+          $edit_item['page callback'] = 'entity_translation_edit_page';
+          $edit_item['page arguments'] = array_merge($args, $original_item['page arguments']);
+          $edit_item['access callback'] = 'entity_translation_edit_access';
+          $edit_item['access arguments'] = array_merge($args, $original_item['access arguments']);
+
+          // Edit translation callback.
+          $translation_position = count($edit_path_parts);
+          $args = array($entity_type, $entity_position, $translation_position, $original_item);
+          $items["$edit_path/%entity_translation_language"] = array(
+            'type' => MENU_DEFAULT_LOCAL_TASK,
+            'title callback' => 'entity_translation_edit_title',
+            'title arguments' => array($translation_position),
+            'page callback' => 'entity_translation_edit_page',
+            'page arguments' => array_merge($args, $original_item['page arguments']),
+            'access callback' => 'entity_translation_edit_access',
+            'access arguments' => array_merge($args, $original_item['access arguments']),
+          )
+          // We need to inherit the remaining menu item keys, mostly 'module'
+          // and 'file' to keep ajax callbacks working (see form_get_cache() and
+          // drupal_retrieve_form()).
+          + $original_item;
+
+          // Add translation callback.
+          $add_path = "$edit_path/add/%entity_translation_language/%entity_translation_language";
+          $source_position = count($edit_path_parts) + 1;
+          $target_position = count($edit_path_parts) + 2;
+          $args = array($entity_type, $entity_position, $source_position, $target_position, $original_item);
+          $items[$add_path] = array(
+            'title callback' => 'Add translation',
+            'page callback' => 'entity_translation_add_page',
+            'page arguments' => array_merge($args, $original_item['page arguments']),
+            'type' => MENU_LOCAL_TASK,
+            'access callback' => 'entity_translation_add_access',
+            'access arguments' => array_merge($args, $original_item['access arguments']),
+          ) + $original_item;
         }
 
-        // Replace the main edit callback with our proxy implementation to set
-        // form language to the current language and check access.
-        $entity_position = count(explode('/', $et_info['base path'])) - 1;
-        $edit_position = count(explode('/', $edit_path)) - 1;
-        $original_item = $edit_form_item;
-        $args = array($entity_type, $entity_position, FALSE, $original_item);
-        $edit_form_item['page callback'] = 'entity_translation_edit_page';
-        $edit_form_item['page arguments'] = array_merge($args, $original_item['page arguments']);
-        $edit_form_item['access callback'] = 'entity_translation_edit_access';
-        $edit_form_item['access arguments'] = array_merge($args, $original_item['access arguments']);
+        // Make the "Translate" tab follow the "Edit" tab if possible.
+        if ($translate_item && $edit_item && isset($edit_item['weight'])) {
+          $translate_item['weight'] = $edit_item['weight'] + 1;
+        }
 
-        // Edit translation callback.
-        $translation_position = $edit_position + 1;
-        $args = array($entity_type, $entity_position, $translation_position, $original_item);
-        $items["$edit_path/%entity_translation_language"] = array(
-          'type' => MENU_DEFAULT_LOCAL_TASK,
-          'title callback' => 'entity_translation_edit_title',
-          'title arguments' => array($translation_position),
-          'page callback' => 'entity_translation_edit_page',
-          'page arguments' => array_merge($args, $original_item['page arguments']),
-          'access callback' => 'entity_translation_edit_access',
-          'access arguments' => array_merge($args, $original_item['access arguments']),
-        )
-        // We need to inherit the remaining menu item keys, mostly 'module' and
-        // 'file' to keep ajax callbacks working (see drupal_retrieve_form() and
-        // form_get_cache()).
-        + $original_item;
+        // If we have both an edit item and a translate item, then we know that
+        // the translate UI has been attached properly (at least once).
+        $translate_ui_attached = $translate_ui_attached || ($translate_item && $edit_item);
 
-        // Add translation callback.
-        $add_path = "$edit_path/add/%entity_translation_language/%entity_translation_language";
-        $source_position = $edit_position + 2;
-        $items[$add_path] = array(
-          'title callback' => 'Add translation',
-          'page callback' => 'entity_translation_add_page',
-          'page arguments' => array_merge(array($entity_type, $entity_position, $source_position, $source_position + 1, $original_item), $original_item['page arguments']),
-          'type' => MENU_LOCAL_TASK,
-          'access callback' => 'entity_translation_add_access',
-          'access arguments' => array_merge(array($entity_type, $entity_position, $source_position, $source_position + 1, $original_item), $original_item['access arguments']),
-        ) + $original_item;
+        // Cleanup reference variables, so we don't accidentially overwrite
+        // something in a later iteration.
+        unset($translate_item, $edit_item);
+      }
 
-        // Delete translation callback.
-        $items["$path/translate/delete/%entity_translation_language"] = array(
-          'title' => 'Delete',
-          'page callback' => 'drupal_get_form',
-          'page arguments' => array('entity_translation_delete_confirm', $entity_type, $entity_position, $language_position),
-        ) + $item;
+      if ($translate_ui_attached == FALSE) {
+        drupal_set_message(t('The entities of type %entity_type do not define a valid path scheme: it will not be possible to translate them.', array('%entity_type' => $info['label'])), 'warning');
       }
     }
   }
+
+  // Avoid bloating memory with unused data.
+  drupal_static_reset('_entity_translation_validate_path_schemes');
 
   // Node-specific menu alterations.
   entity_translation_node_menu_alter($items, $backup);
@@ -363,7 +533,7 @@ function entity_translation_edit_page() {
 
   // Set the current form language.
   $handler = entity_translation_get_handler($entity_type, $entity);
-  $translations = $handler->getTranslations();
+  $handler->initPathScheme();
   $langcode = entity_translation_form_language($langcode, $handler);
   $handler->setFormLanguage($langcode);
 
@@ -384,7 +554,8 @@ function entity_translation_edit_access() {
   $translations = $handler->getTranslations();
   $langcode = entity_translation_form_language($langcode, $handler);
 
-  // The user must be explicitly allowed to access the original values.
+  // The user must be explicitly allowed to access the original values if
+  // workflow permissions are enabled.
   if (!$handler->getTranslationAccess($langcode)) {
     return FALSE;
   }
@@ -426,10 +597,12 @@ function entity_translation_form_language($langcode, $handler) {
     $langcode = $GLOBALS['language_content']->language;
   }
 
-  $translations = $handler->getTranslations();
-  $fallback = language_fallback_get_candidates();
-  while (!empty($langcode) && !isset($translations->data[$langcode])) {
-    $langcode = array_shift($fallback);
+  if (drupal_multilingual()) {
+    $translations = $handler->getTranslations();
+    $fallback = language_fallback_get_candidates();
+    while (!empty($langcode) && !isset($translations->data[$langcode])) {
+      $langcode = array_shift($fallback);
+    }
   }
 
   // If no translation is available fall back to the entity language.
@@ -474,6 +647,7 @@ function entity_translation_add_page() {
   $edit_form_item = array_shift($args);
 
   $handler = entity_translation_get_handler($entity_type, $entity);
+  $handler->initPathScheme();
   $handler->setFormLanguage($langcode);
   $handler->setSourceLanguage($source);
 
@@ -498,11 +672,20 @@ function _entity_translation_callback($callback, $args, $info = array()) {
 function entity_translation_admin_paths() {
   $paths = array();
   foreach (entity_get_info() as $entity_type => $info) {
-    if (entity_translation_enabled($entity_type, TRUE) && isset($info['translation']['entity_translation']['base path'])) {
-      $base_path = preg_replace('|%[^/]*|', '*', $info['translation']['entity_translation']['base path']);
-      $paths["$base_path/translate"] = TRUE;
-      $paths["$base_path/translate/*"] = TRUE;
-      $paths["$base_path/edit/*"] = TRUE;
+    if (entity_translation_enabled($entity_type, TRUE)) {
+      foreach ($info['translation']['entity_translation']['path schemes'] as $scheme) {
+        if (!empty($scheme['admin theme'])) {
+          if (isset($scheme['translate path'])) {
+            $translate_path = preg_replace('|%[^/]*|', '*', $scheme['translate path']);
+            $paths[$translate_path] = TRUE;
+            $paths["$translate_path/*"] = TRUE;
+          }
+          if (isset($scheme['edit path'])) {
+            $edit_path = preg_replace('|%[^/]*|', '*', $scheme['edit path']);
+            $paths["$edit_path/*"] = TRUE;
+          }
+        }
+      }
     }
   }
   return $paths;
@@ -511,8 +694,13 @@ function entity_translation_admin_paths() {
 /**
  * Access callback.
  */
-function entity_translation_tab_access($entity_type) {
-  return drupal_multilingual() && (user_access('translate any entity') || user_access("translate $entity_type entities"));
+function entity_translation_tab_access($entity_type, $entity) {
+  if (drupal_multilingual() && (user_access('translate any entity') || user_access("translate $entity_type entities"))) {
+    list(, , $bundle) = entity_extract_ids($entity_type, $entity);
+    $enabled = entity_translation_enabled_bundle($entity_type, $bundle);
+    return $enabled && entity_translation_get_handler($entity_type, $entity)->getLanguage() != LANGUAGE_NONE;
+  }
+  return FALSE;
 }
 
 /**
@@ -544,31 +732,62 @@ function entity_translation_permission() {
       'title' => t('Toggle field translatability'),
       'description' => t('Toggle translatability of fields performing a bulk update.'),
     ),
-    'edit translation shared fields' => array(
-      'title' => t('Edit shared fields'),
-      'description' => t('Edit fields shared between translations on the translation form.'),
-    ),
-    'edit original values' => array(
-      'title' => t('Edit original values'),
-      'description' => t('Access the entity edit form in the original language.'),
-    ),
     'translate any entity' => array(
       'title' => t('Translate any entity'),
       'description' => t('Translate field content for any fieldable entity.'),
     ),
   );
 
+  $workflow = entity_translation_workflow_enabled();
+  if ($workflow) {
+    $permission += array(
+      'edit translation shared fields' => array(
+        'title' => t('Edit shared values'),
+        'description' => t('Edit values shared between translations on the entity form.'),
+      ),
+      'edit original values' => array(
+        'title' => t('Edit original values'),
+        'description' => t('Access any entity form in the original language.'),
+      ),
+    );
+  }
+
   foreach (entity_get_info() as $entity_type => $info) {
-    if ($info['fieldable']) {
-      $label = t($info['label']);
+    if ($info['fieldable'] && entity_translation_enabled($entity_type)) {
+      $label = !empty($info['label']) ? t($info['label']) : $entity_type;
       $permission["translate $entity_type entities"] = array(
         'title' => t('Translate entities of type @type', array('@type' => $label)),
         'description' => t('Translate field content for entities of type @type.', array('@type' => $label)),
       );
+
+      if ($workflow) {
+        // Avoid access control for original values on the current entity.
+        if (empty($info['translation']['entity_translation']['skip original values access'])) {
+          $permission["edit $entity_type original values"] = array(
+            'title' => t('Edit original values on entities of type @type', array('@type' => $label)),
+            'description' => t('Access the entity form in the original language for entities of type @type.', array('@type' => $label)),
+          );
+        }
+
+        // Avoid access control for shared fields on the current entity.
+        if (empty($info['translation']['entity_translation']['skip shared fields access'])) {
+          $permission["edit $entity_type translation shared fields"] = array(
+            'title' => t('Edit @type shared values.', array('@type' => $label)),
+            'description' => t('Edit values shared between translations on @type forms.', array('@type' => $label)),
+          );
+        }
+      }
     }
   }
 
   return $permission;
+}
+
+/**
+ * Returns TRUE if the translation workflow is enabled.
+ */
+function entity_translation_workflow_enabled() {
+  return variable_get('entity_translation_workflow_enabled', FALSE);
 }
 
 /**
@@ -592,6 +811,38 @@ function entity_translation_entity_load($entities, $entity_type) {
   if (entity_translation_enabled($entity_type)) {
     EntityTranslationDefaultHandler::loadMultiple($entity_type, $entities);
   }
+}
+
+/**
+ * Implements hook_field_extra_fields().
+ */
+function entity_translation_field_extra_fields() {
+  $extra = array();
+  $enabled = variable_get('entity_translation_entity_types', array());
+  $info = entity_get_info();
+
+  foreach ($enabled as $entity_type) {
+    if (entity_translation_enabled($entity_type)) {
+      $bundles = !empty($info[$entity_type]['bundles']) ? array_keys($info[$entity_type]['bundles']) : array($entity_type);
+      foreach ($bundles as $bundle) {
+        $settings = entity_translation_settings($entity_type, $bundle);
+        if (empty($settings['hide_language_selector']) && entity_translation_enabled_bundle($entity_type, $bundle) && ($handler = entity_translation_get_handler($entity_type, $bundle))) {
+          $language_key = $handler->getLanguageKey();
+          $extra[$entity_type][$bundle] = array(
+            'form' => array(
+              $language_key => array(
+                'label' => t('Language'),
+                'description' => t('Language selection'),
+                'weight' => 5,
+              ),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  return $extra;
 }
 
 /**
@@ -644,7 +895,7 @@ function entity_translation_field_attach_view_alter(&$output, $context) {
   if (!variable_get('locale_field_language_fallback', TRUE) && entity_translation_enabled($context['entity_type'])) {
     $handler = entity_translation_get_handler($context['entity_type'], $context['entity']);
     $translations = $handler->getTranslations();
-    $langcode = $GLOBALS['language_content']->language;
+    $langcode = !empty($context['language']) ? $context['language'] : $GLOBALS['language_content']->language;
 
     // If fallback is disabled we need to notify the user that the translation
     // is unavailable (missing or unpublished).
@@ -723,7 +974,7 @@ function entity_translation_sync($entity_type, $entity) {
     return;
   }
 
-  list($id, $rid, $bundle) = entity_extract_ids($entity_type, $entity);
+  list($id, , $bundle) = entity_extract_ids($entity_type, $entity);
   $instances = field_info_instances($entity_type, $bundle);
   $entity_unchanged = isset($entity->original) ? $entity->original : entity_load_unchanged($entity_type, $id);
 
@@ -859,6 +1110,7 @@ function entity_translation_field_attach_delete($entity_type, $entity) {
 function entity_translation_field_attach_form($entity_type, $entity, &$form, &$form_state, $langcode) {
   // Skip recursing into the source form.
   if (empty($form['#entity_translation_source_form']) && ($handler = entity_translation_entity_form_get_handler($form, $form_state))) {
+    $langcode = !empty($langcode) ? $langcode : $handler->getLanguage();
     $form_langcode = $handler->getFormLanguage();
     $translations = $handler->getTranslations();
     $update_langcode = $form_langcode && ($form_langcode != $langcode);
@@ -911,29 +1163,13 @@ function entity_translation_field_attach_form($entity_type, $entity, &$form, &$f
     // Handle fields shared between translations when there is at least one
     // translation available or a new one is being created.
     if (!$handler->isNewEntity() && ($new_translation || count($translations->data) > 1)) {
+      $access = $handler->getSharedFieldsAccess();
       list(, , $bundle) = entity_extract_ids($entity_type, $entity);
-
-      // Shared fields are visible if we are either editing the source node, or
-      // if the user has the respective permission.
-      $is_source = $langcode == $handler->getLanguage();
-      $shared_fields_visible = $is_source || user_access('edit translation shared fields');
-
       foreach (field_info_instances($entity_type, $bundle) as $instance) {
         $field_name = $instance['field_name'];
         $field = field_info_field($field_name);
-
-        if ($shared_fields_visible) {
-          // Add visual clues about translatability.
-          if (!isset($form[$field_name]['#process'])) {
-            $form[$field_name]['#process'] = array();
-          }
-          $form[$field_name]['#field_name'] = $field_name;
-          array_unshift($form[$field_name]['#process'], 'entity_translation_element_translatability_clue');
-        }
-        // Hide shared fields.
-        elseif (!$field['translatable']) {
-          $form[$field_name]['#access'] = FALSE;
-        }
+        $form[$field_name]['#access'] = !empty($form[$field_name]['#access']) && ($field['translatable'] || $access);
+        $form[$field_name]['#multilingual'] = (boolean) $field['translatable'];
       }
     }
 
@@ -994,11 +1230,19 @@ function entity_translation_form_element_language_replace(&$element, $source, $l
     if ($key === '#language') {
       $element[$key] = $langcode;
     }
-
-    if ($key === '#parents' || $key === '#field_parents') {
+    elseif ($key === '#parents' || $key === '#field_parents') {
       foreach ($element[$key] as $delta => $value) {
         if ($value === $source) {
           $element[$key][$delta] = $langcode;
+        }
+      }
+    }
+    elseif ($key === '#limit_validation_errors') {
+      foreach ($element[$key] as $section => $section_value) {
+        foreach ($element[$key][$section] as $delta => $value) {
+          if ($value === $source) {
+            $element[$key][$section][$delta] = $langcode;
+          }
         }
       }
     }
@@ -1012,17 +1256,10 @@ function entity_translation_form_element_language_replace(&$element, $source, $l
  * shared between different translations. Moreover fields receive a CSS class to
  * distinguish between translatable and shared fields.
  */
-function entity_translation_element_translatability_clue($element, &$form_state, $form) {
-  $languages = language_list();
-
-  $field_name = $element['#field_name'];
-  $field = field_info_field($field_name);
-  $field_language = $element['#language'];
-
+function entity_translation_element_translatability_clue($element) {
   // Append language to element title.
-  if (variable_get('entity_translation_shared_labels', TRUE)) {
-    $suffix = $field['translatable'] ? '' : ' (' . t('shared field') . ')';
-    _entity_translation_element_title_append($element, $suffix);
+  if (empty($element['#multilingual'])) {
+    _entity_translation_element_title_append($element, ' (' . t('all languages') . ')');
   }
 
   // Add CSS class names.
@@ -1032,9 +1269,41 @@ function entity_translation_element_translatability_clue($element, &$form_state,
   if (!isset($element['#attributes']['class'])) {
     $element['#attributes']['class'] = array();
   }
-  $element['#attributes']['class'][] = 'entity-translation-' . ($field['translatable'] ? 'field-translatable' : 'field-shared');
+  $element['#attributes']['class'][] = 'entity-translation-' . (!empty($element['#multilingual']) ? 'field-translatable' : 'field-shared');
 
   return $element;
+}
+
+/**
+ * Adds a callback function to the given FAPI element.
+ *
+ * Drupal core only adds default element callbacks if the respective handler
+ * type is not defined yet. This function ensures that our callback is only
+ * prepended/appended to the default set of callbacks instead of replacing it.
+ *
+ * @param $element
+ *   The FAPI element.
+ * @param $type
+ *   The callback type, e.g. '#pre_render' or '#process'.
+ * @param $function
+ *   The name of the callback to add.
+ * @param $prepend
+ *   Set to TRUE to add the new callback to the beginning of the existing set of
+ *   callbacks, and set it to FALSE to append it at the end.
+ */
+function _entity_translation_element_add_callback(&$element, $type, $function, $prepend = TRUE) {
+  // If handler type has not been set, add defaults from element_info().
+  if (!isset($element[$type])) {
+    $element_type = isset($element['#type']) ? $element['#type'] : 'markup';
+    $element_info = element_info($element_type);
+    $element[$type] = isset($element_info[$type]) ? $element_info[$type] : array();
+  }
+  if ($prepend) {
+    array_unshift($element[$type], $function);
+  }
+  else {
+    $element[$type][] = $function;
+  }
 }
 
 /**
@@ -1075,8 +1344,22 @@ function _entity_translation_element_title_append(&$element, $suffix) {
  * Implements hook_form_alter().
  */
 function entity_translation_form_alter(&$form, &$form_state) {
-  if (($handler = entity_translation_entity_form_get_handler($form, $form_state)) && !$handler->isNewEntity()) {
-    $handler->entityForm($form, $form_state);
+  if ($handler = entity_translation_entity_form_get_handler($form, $form_state)) {
+    if (!$handler->isNewEntity()) {
+      $handler->entityForm($form, $form_state);
+      $translations = $handler->getTranslations();
+      $form_langcode = $handler->getFormLanguage();
+      if (!isset($translations->data[$form_langcode]) || count($translations->data) > 1) {
+        // Hide shared form elements if the user is not allowed to edit them.
+        $handler->entityFormSharedElements($form);
+      }
+    }
+    else {
+      $handler->entityFormLanguageWidget($form, $form_state);
+    }
+    // We need to process the posted form as early as possible to update the
+    // form language value.
+    array_unshift($form['#validate'], 'entity_translation_entity_form_validate');
   }
 }
 
@@ -1097,7 +1380,7 @@ function entity_translation_entity_form_source_language_submit($form, &$form_sta
  */
 function entity_translation_entity_form_delete_translation_submit($form, &$form_state) {
   $handler = entity_translation_entity_form_get_handler($form, $form_state);
-  $form_state['redirect'] = "{$handler->getBasePath()}/translate/delete/{$handler->getFormLanguage()}";
+  $form_state['redirect'] = "{$handler->getTranslatePath()}/delete/{$handler->getFormLanguage()}";
 }
 
 /**
@@ -1106,6 +1389,14 @@ function entity_translation_entity_form_delete_translation_submit($form, &$form_
 function entity_translation_entity_form_validate($form, &$form_state) {
   $handler = entity_translation_entity_form_get_handler($form, $form_state);
   $handler->entityFormValidate($form, $form_state);
+}
+
+/**
+ * Submit handler for the entity language widget.
+ */
+function entity_translation_language_widget_submit($form, &$form_state) {
+  $handler = entity_translation_entity_form_get_handler($form, $form_state);
+  $handler->entityFormLanguageWidgetSubmit($form, $form_state);
 }
 
 /**
@@ -1141,7 +1432,7 @@ function entity_translation_menu_local_tasks_alter(&$data, $router_item, $root_p
   // When displaying the main edit form, we need to craft an additional level of
   // local tasks for each available translation.
   $handler = entity_translation_get_handler();
-  if (!empty($handler) && $handler->getLanguage() != LANGUAGE_NONE && ($form_langcode = $handler->getFormLanguage()) && drupal_multilingual()) {
+  if (!empty($handler) && $handler->isEntityForm() && $handler->getLanguage() != LANGUAGE_NONE && drupal_multilingual()) {
     $handler->localTasksAlter($data, $router_item, $root_path);
   }
 }
@@ -1256,12 +1547,106 @@ function entity_translation_form_field_ui_field_edit_form_alter(&$form, $form_st
 }
 
 /**
+ * Helper function. Determines whether the given entity type is translatable.
+ */
+function entity_translation_enabled($entity_type, $skip_handler = FALSE) {
+  $enabled_types = variable_get('entity_translation_entity_types', array());
+  return !empty($enabled_types[$entity_type]) && ($skip_handler || field_has_translation_handler($entity_type, 'entity_translation'));
+}
+
+/**
+ * Helper function. Determines whether the given entity bundle is translatable.
+ */
+function entity_translation_enabled_bundle($entity_type, $bundle) {
+  $info = entity_get_info($entity_type);
+  $bundle_callback = isset($info['translation']['entity_translation']['bundle callback']) ? $info['translation']['entity_translation']['bundle callback'] : FALSE;
+  return empty($bundle_callback) || call_user_func($bundle_callback, $bundle);
+}
+
+/**
+ * Return the entity translation settings for the given entity type and bundle.
+ */
+function entity_translation_settings($entity_type, $bundle) {
+  $settings = variable_get('entity_translation_settings_' . $entity_type . '__' . $bundle, array());
+
+  if (empty($settings)) {
+    $info = entity_get_info($entity_type);
+    if (!empty($info['translation']['entity_translation']['default settings'])) {
+      $settings = $info['translation']['entity_translation']['default settings'];
+    }
+  }
+
+  $settings += array(
+    'default_language' => ENTITY_TRANSLATION_LANGUAGE_DEFAULT,
+    'hide_language_selector' => TRUE,
+    'exclude_language_none' => FALSE,
+    'lock_language' => FALSE,
+    'shared_fields_original_only' => FALSE,
+  );
+
+  return $settings;
+}
+
+/**
+ * Entity language callback.
+ *
+ * This callback changes the entity language from the actual one to the active
+ * form language. This overriding allows to obtain language dependent form
+ * widgets where multilingual values are supported (e.g. field or path alias
+ * widgets) even if the code was not originally written with supporting multiple
+ * values per language in mind.
+ *
+ * The main drawback of this approach is that code needing to access the actual
+ * language in the entity form build/validation/submit workflow cannot rely on
+ * the entity_language() function. On the other hand in these scenarios assuming
+ * the presence of Entity translation should be safe, thus being able to rely on
+ * the EntityTranslationHandlerInterface::getLanguage() method.
+ *
+ * @param $entity_type
+ *    The the type of the entity.
+ * @param $entity
+ *    The entity whose language has to be returned.
+ *
+ * @return
+ *   A valid language code.
+ */
+function entity_translation_language($entity_type, $entity) {
+  // If a form has been post, we need to check its state to verify if any form
+  // translation handler is stored there. This is mainly needed when responding
+  // to an AJAX request where the form language cannot be set from the page
+  // callback.
+  $handler = entity_translation_current_form_get_handler();
+
+  // Make sure we always have a translation handler instance available.
+  if (empty($handler)) {
+    $handler = entity_translation_get_handler($entity_type, $entity);
+  }
+  // If a translation handler associated to the current form is found, we need
+  // to update the wrapped entity. This way submitted values will be picked up.
+  else {
+    $langcode = $handler->getLanguage();
+    $handler->setEntity($entity);
+    $submitted_langcode = $handler->getLanguage();
+    // If the entity language has changed we are editing the original values. In
+    // this case we need to update the current form language with the submitted
+    // one.
+    if ($submitted_langcode != $langcode) {
+      $handler->setFormLanguage($submitted_langcode);
+    }
+  }
+
+  $langcode = $handler->getFormLanguage();
+  return !empty($langcode) ? $langcode : $handler->getLanguage();
+}
+
+/**
  * Translation handler factory.
  *
  * @param $entity_type
  *   (optional) The type of $entity; e.g. 'node' or 'user'.
  * @param $entity
- *   (optional) The entity to be translated.
+ *   (optional) The entity to be translated. A bundle name may be passed to
+ *   instantiate an empty entity.
  * @param $update
  *   (optional) Instances are statically cached: if this is TRUE the wrapped
  *   entity will be replaced by the passed one.
@@ -1288,13 +1673,18 @@ function entity_translation_get_handler($entity_type = NULL, $entity = NULL, $up
       return NULL;
     }
   }
+  elseif (is_string($entity)) {
+    $entity = entity_create_stub_entity($entity_type, array(NULL, NULL, $entity));
+  }
 
   list($entity_id) = entity_extract_ids($entity_type, $entity);
 
   if (!isset($handlers[$entity_type][$entity_id])) {
     $entity_info = entity_get_info($entity_type);
     $class = $entity_info['translation']['entity_translation']['class'];
-    $handler = new $class($entity_type, $entity_info, $entity, $entity_id);
+    // @todo remove fourth parameter once 3rd-party translation handlers have
+    // been fixed and no longer require the deprecated entity_id parameter.
+    $handler = new $class($entity_type, $entity_info, $entity, NULL);
 
     // If the entity id is empty we cannot cache the translation handler
     // instance.
@@ -1327,16 +1717,39 @@ function entity_translation_get_handler($entity_type = NULL, $entity = NULL, $up
  */
 function entity_translation_entity_form_get_handler($form, &$form_state) {
   $handler = FALSE;
+  $entity_type = isset($form['#entity_type']) ? $form['#entity_type'] : FALSE;
 
-  if (empty($form_state['storage']['entity_translation']['handler'])) {
-    $info = entity_translation_edit_form_info($form, $form_state);
-    if (entity_translation_enabled($info['entity type']) && !entity_translation_node($info['entity type'], $info['entity'])) {
-      $handler = entity_translation_get_handler($info['entity type'], $info['entity']);
-      $form_state['storage']['entity_translation']['handler'] = $handler;
+  if ($entity_type) {
+    if (empty($form_state['storage']['entity_translation']['handler'][$entity_type])) {
+      if ($info = entity_translation_edit_form_info($form, $form_state)) {
+        list(, , $bundle) = entity_extract_ids($info['entity type'], $info['entity']);
+        if (entity_translation_enabled($info['entity type']) && entity_translation_enabled_bundle($info['entity type'], $bundle) && !entity_translation_node($info['entity type'], $info['entity'])) {
+          $handler = entity_translation_get_handler($info['entity type'], $info['entity']);
+          $form_state['storage']['entity_translation']['handler'][$info['entity type']] = $handler;
+        }
+      }
+    }
+    else {
+      $handler = $form_state['storage']['entity_translation']['handler'][$entity_type];
     }
   }
-  else {
-    $handler = $form_state['storage']['entity_translation']['handler'];
+
+  return $handler;
+}
+
+/**
+ * Returns the translation handler associated to the currently submitted form.
+ *
+ * @return EntityTranslationHandlerInterface
+ *   A translation handler instance if available, FALSE oterwise.
+ */
+function entity_translation_current_form_get_handler() {
+  $handler = FALSE;
+
+  if (!empty($_POST['form_build_id'])) {
+    $form_state = form_state_defaults();
+    $form = form_get_cache($_POST['form_build_id'], $form_state);
+    $handler = entity_translation_entity_form_get_handler($form, $form_state);
   }
 
   return $handler;
@@ -1408,4 +1821,70 @@ function entity_translation_views_api() {
     'api' => 3,
     'path' => drupal_get_path('module', 'entity_translation') . '/views',
   );
+}
+
+/**
+ * Implements hook_uuid_entities_features_export_entity_alter().
+ */
+function entity_translation_uuid_entities_features_export_entity_alter($entity, $entity_type) {
+  // We do not need to export most of the keys:
+  // - The entity type is determined from the entity the translations are
+  //   attached to.
+  // - The entity id will change from one site to another.
+  // - The user id needs to be removed because it will change as well.
+  // - Created and changed could be left but the UUID module removes created and
+  //   changed values from the entities it exports, hence we do the same for
+  //   consistency.
+  if (entity_translation_enabled($entity_type)) {
+    $fields = array('entity_type', 'entity_id', 'uid', 'created', 'changed');
+    $handler = entity_translation_get_handler($entity_type, $entity);
+    $translations = $handler->getTranslations();
+    if ($translations && isset($translations->data)) {
+      foreach ($translations->data as &$translation) {
+        foreach ($fields as $field) {
+          unset($translation[$field]);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_entity_uuid_presave().
+ */
+function entity_translation_entity_uuid_presave(&$entity, $entity_type) {
+  // UUID exports entities as arrays, therefore we need to cast the translations
+  // array back into an object.
+  $entity_info = entity_get_info($entity_type);
+  if (isset($entity_info['entity keys']) && isset($entity_info['entity keys']['translations'])) {
+    $key = $entity_info['entity keys']['translations'];
+    if (isset($entity->{$key})) {
+      $entity->{$key} = (object) $entity->{$key};
+    }
+  }
+}
+
+/**
+ * Implement hook_pathauto_alias_alter().
+ *
+ * When bulk-updating aliases for nodes automatically create a path for every
+ * translation.
+ */
+function entity_translation_pathauto_alias_alter(&$alias, array &$context) {
+  // Ensure that we are dealing with a node having entity translation enabled.
+  if ($context['module'] == 'node' && $context['op'] == 'bulkupdate' && entity_translation_enabled('node') && !entity_translation_node('node', $context['data']['node'])) {
+    $translations = entity_translation_get_handler('node', $context['data']['node'])->getTranslations();
+    // Only create extra aliases if we are working on the original language to
+    // avoid infinite recursion.
+    if ($context['language'] == $translations->original) {
+      foreach ($translations->data as $language => $translation) {
+        // We already have an alias for the original language, so let's not
+        // create another one.
+        if ($language == $translations->original) {
+          continue;
+        }
+        pathauto_create_alias($context['module'], $context['op'], $context['source'], $context['data'], $context['type'], $language);
+      }
+    }
+  }
 }

@@ -63,16 +63,13 @@ function entity_translation_node_menu_alter(&$items, $backup) {
 function entity_translation_node_tab_access() {
   $args = func_get_args();
   $node = array_shift($args);
-  if ($node->language != LANGUAGE_NONE) {
-    if (entity_translation_node_supported_type($node->type)) {
-      return entity_translation_tab_access('node');
-    }
-    elseif (entity_translation_node('node', $node)) {
-      $function = array_shift($args);
-      return call_user_func_array($function, $args);
-    }
+  if (entity_translation_node('node', $node)) {
+    $function = array_shift($args);
+    return call_user_func_array($function, $args);
   }
-  return FALSE;
+  else {
+    return entity_translation_tab_access('node', $node);
+  }
 }
 
 /**
@@ -90,8 +87,8 @@ function entity_translation_node_supported_type($type) {
  *
  * Provides content language switcher links to navigate among node translations.
  */
-function entity_translation_node_view($node, $build_mode) {
-  if (!empty($node->translations) && drupal_multilingual() && entity_translation_node_supported_type($node->type)) {
+function entity_translation_node_view($node, $build_mode, $langcode) {
+  if (!empty($node->translations) && drupal_multilingual() && entity_translation_node_supported_type($node->type) && !variable_get("entity_translation_hide_translation_links_{$node->type}", FALSE)) {
     $path = 'node/' . $node->nid;
     $links = EntityTranslationDefaultHandler::languageSwitchLinks($path);
 
@@ -100,7 +97,7 @@ function entity_translation_node_view($node, $build_mode) {
       $translations = $handler->getTranslations()->data;
 
       // Remove the link for the current language.
-      unset($links->links[$GLOBALS['language_content']->language]);
+      unset($links->links[$langcode]);
 
       // Remove links to unavailable translations.
       foreach ($links->links as $langcode => $link) {
@@ -125,26 +122,35 @@ function entity_translation_node_view($node, $build_mode) {
  * translation metadata and comment filtering.
  */
 function entity_translation_form_node_type_form_alter(&$form, &$form_state) {
-  $type = $form['#node_type']->type;
+  if (entity_translation_enabled('node')) {
+    $type = $form['#node_type']->type;
 
-  $form['workflow']['language_content_type']['#options'][ENTITY_TRANSLATION_ENABLED] = t('Enabled, with field translation');
-  $form['workflow']['language_content_type']['#description'] .= ' ' . t('<p>If field translation is selected you can have per-field translation for each available language.');
-
-  $form['display']['entity_translation_node_metadata'] = array(
-    '#type' => 'radios',
-    '#title' => t('Translation post information'),
-    '#description' => t('Whether the translation authoring information should be hidden, shown, or replace the node\'s authoring information.'),
-    '#default_value' => variable_get("entity_translation_node_metadata_$type", ENTITY_TRANSLATION_METADATA_HIDE),
-    '#options' => array(t('Hidden'), t('Shown'), t('Replacing post information')),
-  );
-
-  if (isset($form['comment'])) {
-    $form['comment']['entity_translation_comment_filter'] = array(
+    $t_args = array('!url' => url('admin/config/regional/entity_translation'));
+    $form['workflow']['language_content_type']['#options'][ENTITY_TRANSLATION_ENABLED] = t('Enabled, with field translation');
+    $form['workflow']['language_content_type']['#description'] .= ' <p>' . t('If field translation is selected you can have per-field translation for each available language. You can find more options in the <a href="!url">entity translation settings</a>.', $t_args) . '</p>';
+    $form['workflow']['entity_translation_hide_translation_links'] = array(
       '#type' => 'checkbox',
-      '#title' => t('Filter comments per language'),
-      '#default_value' => variable_get("entity_translation_comment_filter_$type", FALSE),
-      '#description' => t('Show only comments whose language matches content language.'),
+      '#default_value' => variable_get("entity_translation_hide_translation_links_$type", FALSE),
+      '#title' => t('Hide content translation links'),
+      '#description' => t('Hide the links to translations in content body and teasers. If you choose this option, switching language will only be available from the language switcher block.'),
     );
+
+    $form['display']['entity_translation_node_metadata'] = array(
+      '#type' => 'radios',
+      '#title' => t('Translation post information'),
+      '#description' => t('Whether the translation authoring information should be hidden, shown, or replace the node\'s authoring information.'),
+      '#default_value' => variable_get("entity_translation_node_metadata_$type", ENTITY_TRANSLATION_METADATA_HIDE),
+      '#options' => array(t('Hidden'), t('Shown'), t('Replacing post information')),
+    );
+
+    if (isset($form['comment']) && entity_translation_enabled('comment')) {
+      $form['comment']['entity_translation_comment_filter'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Filter comments per language'),
+        '#default_value' => variable_get("entity_translation_comment_filter_$type", FALSE),
+        '#description' => t('Show only comments whose language matches content language.'),
+      );
+    }
   }
 }
 
@@ -195,6 +201,17 @@ function entity_translation_preprocess_node(&$variables) {
 }
 
 /**
+ * Returns whether the given comment type has support for translations.
+ *
+ * @return
+ *   Boolean value.
+ */
+function entity_translation_comment_supported_type($comment_type) {
+  $type = str_replace('comment_node_', '', $comment_type);
+  return entity_translation_node_supported_type($type);
+}
+
+/**
  * Implements hook_query_TAG_alter().
  *
  * Filters out node comments by content language.
@@ -203,7 +220,21 @@ function entity_translation_preprocess_node(&$variables) {
  */
 function entity_translation_query_comment_filter_alter(QueryAlterableInterface $query) {
   $node = $query->getMetaData('node');
-  if (variable_get("entity_translation_comment_filter_{$node->type}", FALSE)) {
-    $query->where("language = :language OR language = :language_none", array(':language' => $GLOBALS['language_content']->language, ':language_none' => LANGUAGE_NONE));
+  if (!empty($node->type) && variable_get("entity_translation_comment_filter_{$node->type}", FALSE)) {
+    // Determine alias for "comment" table.
+    $comment_alias = FALSE;
+    foreach ($query->getTables() as $table) {
+      if (is_string($table['table']) && $table['table'] == 'comment') {
+        $comment_alias = $table['alias'];
+        break;
+      }
+    }
+    // Only show comments without language or matching the current content language.
+    if ($comment_alias) {
+      $query->condition(db_or()
+        ->condition($comment_alias . '.language', $GLOBALS['language_content']->language)
+        ->condition($comment_alias . '.language', LANGUAGE_NONE)
+      );
+    }
   }
 }

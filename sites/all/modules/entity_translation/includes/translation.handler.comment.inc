@@ -11,15 +11,8 @@
  */
 class EntityTranslationCommentHandler extends EntityTranslationDefaultHandler {
 
-  public function __construct($entity_type, $entity_info, $entity, $entity_id) {
-    parent::__construct('comment', $entity_info, $entity, $entity_id);
-  }
-
-  /**
-   * @see EntityTranslationDefaultHandler::getLanguage()
-   */
-  public function getLanguage() {
-    return $this->entity->language;
+  public function __construct($entity_type, $entity_info, $entity) {
+    parent::__construct('comment', $entity_info, $entity);
   }
 
   /**

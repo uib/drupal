@@ -13,8 +13,8 @@
  */
 class EntityTranslationNodeHandler extends EntityTranslationDefaultHandler {
 
-  public function __construct($entity_type, $entity_info, $entity, $entity_id) {
-    parent::__construct('node', $entity_info, $entity, $entity_id);
+  public function __construct($entity_type, $entity_info, $entity) {
+    parent::__construct('node', $entity_info, $entity);
   }
 
   /**
@@ -29,6 +29,13 @@ class EntityTranslationNodeHandler extends EntityTranslationDefaultHandler {
    */
   public function getAccess($op) {
     return node_access($op, $this->entity);
+  }
+
+  /**
+   * @see EntityTranslationDefaultHandler::getTranslationAccess()
+   */
+  public function getTranslationAccess($langcode) {
+    return user_access('bypass node access') || parent::getTranslationAccess($langcode);
   }
 
   /**
@@ -52,6 +59,25 @@ class EntityTranslationNodeHandler extends EntityTranslationDefaultHandler {
         $form['translation']['created']['#access'] = FALSE;
       }
     }
+
+    // Path aliases natively support multilingual values.
+    if (isset($form['path'])) {
+      $form['path']['#multilingual'] = TRUE;
+    }
+  }
+
+  /**
+   * @see EntityTranslationDefaultHandler::menuForm()
+   */
+  protected function menuForm(&$form, &$form_state) {
+    entity_translation_i18n_menu_form($form, $form_state);
+  }
+
+  /**
+   * @see EntityTranslationDefaultHandler::entityFormLanguageWidgetSubmit()
+   */
+  function entityFormLanguageWidgetSubmit($form, &$form_state) {
+    $this->updateFormLanguage($form_state);
   }
 
   /**
@@ -59,7 +85,8 @@ class EntityTranslationNodeHandler extends EntityTranslationDefaultHandler {
    */
   public function entityFormSubmit($form, &$form_state) {
     if (!isset($form_state['values']['translation'])) {
-      $form_state['values']['translation'] = array('status' => $form_state['values']['status']);
+      // Always publish the original values when we have no translations.
+      $form_state['values']['translation'] = array('status' => TRUE);
     }
     $values = &$form_state['values']['translation'];
 

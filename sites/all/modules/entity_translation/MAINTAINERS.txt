@@ -26,6 +26,7 @@ Current component maintainers for Entity translation:
 
 Base system
 - Francesco Placella 'plach' <http://drupal.org/user/183211>
+- Benedikt Forchhammer 'bforchhammer' <http://drupal.org/user/216396>
 
 Menu integration
 - Benedikt Forchhammer 'bforchhammer' <http://drupal.org/user/216396>
